@@ -22,6 +22,7 @@ dash-extensions = "^0.1.1"
 dash-mantine-components = "^0.8.0"
 geopy = "^2.2.0"
 dash-daq = "^0.5.0"
+pyDOE = "^0.3.8"
 
 [tool.poetry.dev-dependencies]
 

@@ -11,7 +11,7 @@ from .setupsoln import solnArray
 from .SolverParams import SolverSet
 
 
-@njit
+@njit(cache=True)
 def NextStep(h_next: float64,
     Params: ParamsSet,
     SolParams: SolverSet,
@@ -131,7 +131,12 @@ def integrate(IC: ICSet, Params: ParamsSet, SolParams: SolverSet, Met: MetDataAr
     
     while True:
         yold = y
-        dy, z_pos = fice(y, IC, Params, Met, z_pos, GasThrust)
+        dy, z_pos, eqn_flag = fice(y, IC, Params, Met, z_pos, GasThrust)
+
+        if (eqn_flag==1):
+            msg = 'Nans/Infs in equations'
+            solverFlag = 0
+            break
     
         solverFlag = 0
       

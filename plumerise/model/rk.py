@@ -60,7 +60,11 @@ def rkCK(
         Flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
-    ak2, z_pos = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Second step.
+    ak2, z_pos, eqn_flag = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Second step.
+
+    if eqn_flag:
+        Flag = -1
+        return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     yt = y_in + h * (B31 * dy + B32 * ak2)
     NaNfound = np.any(np.isnan(yt))
@@ -68,7 +72,11 @@ def rkCK(
         Flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
-    ak3, z_pos = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Third step.
+    ak3, z_pos, eqn_flag = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Third step.
+
+    if eqn_flag:
+        Flag = -1
+        return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     yt = y_in + h * (B41 * dy + B42 * ak2 + B43 * ak3)
     NaNfound = np.any(np.isnan(yt))
@@ -76,7 +84,11 @@ def rkCK(
         Flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
-    ak4, z_pos = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Fourth step.
+    ak4, z_pos, eqn_flag = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Fourth step.
+
+    if eqn_flag:
+        Flag = -1
+        return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     yt = y_in + h * (B51 * dy + B52 * ak2 + B53 * ak3 + B54 * ak4)
     NaNfound = np.any(np.isnan(yt))
@@ -84,7 +96,11 @@ def rkCK(
         Flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
-    ak5, z_pos = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Fifth step.
+    ak5, z_pos, eqn_flag = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Fifth step.
+
+    if eqn_flag:
+        Flag = -1
+        return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     yt = y_in + h * (B61 * dy + B62 * ak2 + B63 * ak3 + B64 * ak4 + B65 * ak5)
     NaNfound = np.any(np.isnan(yt))
@@ -92,7 +108,11 @@ def rkCK(
         Flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
-    ak6, z_pos = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Sixth step.
+    ak6, z_pos, eqn_flag = fice(yt, IC, Params, Met, z_pos, GasThrust)  # Sixth step.
+
+    if eqn_flag:
+        Flag = -1
+        return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     y_out = y_in + h * (
         C1 * dy + C3 * ak3 + C4 * ak4 + C6 * ak6

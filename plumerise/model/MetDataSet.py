@@ -1,4 +1,5 @@
 from datetime import datetime
+from functools import cache
 
 import metpy as metpy
 import metpy.calc as mpcalc
@@ -10,7 +11,7 @@ from numba.types import float64, int64, string
 from siphon.simplewebservice.wyoming import WyomingUpperAir
 
 
-@njit
+@njit(cache=True)
 def locate(xx: np.ndarray, x: float64):
     """locate: From Numerical Recipes in Fortran 90
         Given an array xx, and given a value x, returns a value j such that x is between
@@ -40,7 +41,7 @@ def locate(xx: np.ndarray, x: float64):
     
     return locate
 
-@njit
+@njit(cache=True)
 def hunt(xx: np.ndarray, x: float64, jlo: int64):
     """hunt: From Numerical Recipes in Fortran 90
         Given an array xx, and given a value x, returns a value jlo such that x is between
@@ -95,7 +96,7 @@ def hunt(xx: np.ndarray, x: float64, jlo: int64):
     
     return jlo
 
-@njit
+@njit(cache=True)
 def interp1angle(xy_list: np.ndarray, x_req: float64, jpos: int64):
     """ Interpolation within an angle data array where y data is contrained to be between 0 and 2*pi, or constant extrapolation outside.
         Inputs: xy_list - contains x values in xy_list[:,0] and y values in xy_list[:,1];
@@ -143,7 +144,7 @@ def interp1angle(xy_list: np.ndarray, x_req: float64, jpos: int64):
     return y_req, jpos
 
 
-@njit
+@njit(cache=True)
 def interp1(xy_list: np.ndarray, x_req: float64, jpos: int64): 
     """Linear interpolation within a data array, or extrapolation outside.
        Inputs: xy_list - contains x values in xy_list[:,0] and y values in xy_list[:,1];
@@ -188,7 +189,7 @@ def interp1(xy_list: np.ndarray, x_req: float64, jpos: int64):
     return y_req, jpos
 
 
-@njit
+@njit(cache=True)
 def interpexp(xy_list: np.ndarray, x_req: float64, jpos: int64):
     """Exponential interpolation within a data array, or exponential extrapolation outside.
     Inputs: xy_list - contains x values in xy_list[:,0] and y values in xy_list[:,1];
@@ -273,6 +274,7 @@ class MetDataArrays(object):
 
         self.temperature[:,0] = height
         self.temperature[:,1] = temperaure
+
 
         self.pressure[:,0] = height
         self.pressure[:,1] = pressure
@@ -448,6 +450,7 @@ class MetData(object):
         date = datetime.fromisoformat(self.Date+' '+self.Time)
 
         df = WyomingUpperAir.request_data(date, self.StationID)
+        df.dropna(axis=0, inplace=True)
 
         temperature = df['temperature'].values * mpunits.units(df.units['temperature'])
         pressure = df['pressure'].values * mpunits.units(df.units['pressure'])

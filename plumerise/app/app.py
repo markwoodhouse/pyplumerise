@@ -23,7 +23,7 @@ from importlib_metadata import distributions
 from numpy import abs, log10
 from pandas import Categorical, DataFrame
 from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
-from plumerise.model.ensemble_solve import make_ensemble
+from plumerise.model.ensemble_solve import solve_ensemble
 
 from ..data import StationList
 from ..model import (ICSet, MetData, MetDataArrays, Params, ParamsSet,
@@ -44,12 +44,12 @@ def GreatCircleDistance(lat, lon, lat0, lon0):
 distributions = {
     "Uniform": "Uniform",
     "Truncated normal": "TruncNorm",
-    "Log-normal": "LogNorm",
+    "Beta": "Beta",
 }
 
 uniform = {"dist-param-0": "Minimum", "dist-param-1": "Maximum", "dist-param-2": None, "dist-param-3": None}
 truncnorm = {"dist-param-0": "Minimum", "dist-param-1": "Maximum", "dist-param-2": "mean", "dist-param-3": "std. dev."}
-lognorm = {"dist-param-0": "Minimum", "dist-param-1": "median", "dist-param-2": "log std. dev.", "dist-param-3": None}
+beta = {"dist-param-0": "Minimum", "dist-param-1": "Maximum", "dist-param-2": "alpha", "dist-param-3": "beta"}
 
 
 def build_parameters_table_row(param):
@@ -113,8 +113,7 @@ def build_parameters_table_row(param):
                 name=param['label']+"-dist-param-2",
                 className="InputBox sml invisible",
                 type="number",
-                min=param['min'],
-                max=param['max'],
+                min=0,
                 placeholder="mean",
                 # pattern="^(?=.)([+-]?([0-9]*)(\.(?[0-9]+))?)$",
             )
@@ -469,9 +468,10 @@ def make_dashboard():
                                                 id="ensemble-size",
                                                 name="ensemble-size",
                                                 className="InputBox",
-                                                type="text",
+                                                type="number",
                                                 value=1000,
-                                                pattern="^(?=.)([+]?([0-9]*)$",
+                                                min=1,
+                                                max=1_000_000,
                                             ),
                                         ]
                                     ),
@@ -714,15 +714,14 @@ def make_dashboard():
                     param1_placeholder = truncnorm['dist-param-1']
                     param2_placeholder = truncnorm['dist-param-2']
                     param3_placeholder = truncnorm['dist-param-3']
-                case "Log-normal":
-                    param1_className = param1_className.replace(" invisible","")
+                case "Beta":
+                    param1_className = param1_className.replace("invisible","")
                     param2_className = param2_className.replace(" invisible","")
-                    if "invisible" not in param3_className:
-                        param3_className = param3_className + " invisible"
-                    param0_placeholder = lognorm['dist-param-0']
-                    param1_placeholder = lognorm['dist-param-1']
-                    param2_placeholder = lognorm['dist-param-2']
-                    param3_placeholder = lognorm['dist-param-3']
+                    param3_className = param3_className.replace(" invisible","")
+                    param0_placeholder = beta['dist-param-0']
+                    param1_placeholder = beta['dist-param-1']
+                    param2_placeholder = beta['dist-param-2']
+                    param3_placeholder = beta['dist-param-3']
         else:
             param0_placeholder = "Elevation (m)"
             param1_className = "InputBox sml invisible"
@@ -777,7 +776,6 @@ def make_dashboard():
         prevent_initial_call=True
     )(activate_run_button)
 
-
     @app.callback(
         [ServersideOutput("params", "data")],
         [Output("set-parameters-modal", "is_open"),
@@ -802,8 +800,8 @@ def make_dashboard():
                 param_store[label+'-dist'] = param_set[j][1]
                 param_store[label+'-dist-param-0'] = param_set[j][2]
                 param_store[label+'-dist-param-1'] = param_set[j][3]
-                param_store[label+'-param-1'] = param_set[j][4]
-                param_store[label+'-param-2'] = param_set[j][5]
+                param_store[label+'-dist-param-2'] = param_set[j][4]
+                param_store[label+'-dist-param-3'] = param_set[j][5]
             return param_store, False, False
 
     def reset_param(clicked):
@@ -928,24 +926,18 @@ def make_dashboard():
         Input("run-ensemble-button", "n_clicks"),
         State("met", "data"),
         State("params", "data"),
+        State("ensemble-size", "value"),
         prevent_initial_call=True,
     )
-    def ensemble_run(clicked, met_data, params_data):
+    def ensemble_run(clicked, met_data, params_data, ensemble_size):
         print(clicked)
         changed_id = [p["prop_id"] for p in callback_context.triggered][0]
         print('changed_id = ' ,changed_id)
         if changed_id == "run-ensemble-button.n_clicks":
-            Met = MetDataArrays(met_data["height"],
-                                met_data["temperature"],
-                                met_data["pressure"],
-                                met_data["direction"],
-                                met_data["speed"],
-                                met_data["relhum"]
-            )
 
-            make_ensemble(params_data)
+            df = solve_ensemble(params_data, ensemble_size, met_data)
 
-            return [1,2,3]
+            return df
 
 
     app.run_server(host="127.0.0.1", debug=True)

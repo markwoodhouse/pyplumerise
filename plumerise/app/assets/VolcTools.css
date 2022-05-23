@@ -1245,7 +1245,9 @@ input[type="radio"] {
 	background-image: -webkit-gradient(linear, left top, left bottom, color-stop(0, #FCFBFA), color-stop(1, #E0D9D2));
 	background-image: -webkit-linear-gradient(top, #FCFBFA 0%, #E0D9D2 100%);
 	background-image: linear-gradient(to bottom, #FCFBFA 0%, #E0D9D2 100%);
+	min-width: 70px;
 }
+
 
 .btn-primary-outline:hover {
 	background-color: #F5F3F1;

@@ -507,6 +507,18 @@ optional = false
 python-versions = ">=3.7"
 
 [[package]]
+name = "pydoe"
+version = "0.3.8"
+description = "Design of experiments for Python"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+numpy = "*"
+scipy = "*"
+
+[[package]]
 name = "pyparsing"
 version = "3.0.9"
 description = "pyparsing module - Classes and methods to define and execute parsing grammars"
@@ -729,7 +741,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.10,<3.11"
-content-hash = "8fe49cce28ad653c8dc0609f506abfb387a8d700053d6cce0369c31d8d576fef"
+content-hash = "64a94366ab1265b1222d94e1fc5059554e0a258e54a1a036401ae8f04cd5b736"
 
 [metadata.files]
 appdirs = [
@@ -1210,6 +1222,9 @@ protobuf = [
     {file = "protobuf-4.21.0_rc_1-py3-none-any.whl", hash = "sha256:97933682fefe98b3bf7651ec7a5d6b0096df12335b903863d4523b39612e09a1"},
     {file = "protobuf-4.21.0rc1-py2.py3-none-any.whl", hash = "sha256:7d03f42e3de0991c89af62cb385d0e74f5e196affa65bf656a7a3da66c3ba93e"},
     {file = "protobuf-4.21.0rc1.tar.gz", hash = "sha256:0224cf69fe1f52bc482380050cf4fa2a7a4af6ce22bca7b4f0b07204ed51567d"},
+]
+pydoe = [
+    {file = "pyDOE-0.3.8.zip", hash = "sha256:cbd6f14ae26d3c9f736013205f53ea1191add4567033c3ee77b7dd356566c4b6"},
 ]
 pyparsing = [
     {file = "pyparsing-3.0.9-py3-none-any.whl", hash = "sha256:5026bae9a10eeaefb61dab2f09052b9f4307d44aee4eda64b309723d8d206bbc"},

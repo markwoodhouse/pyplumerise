@@ -311,10 +311,15 @@ def fice(y: np.ndarray, IC: ICSet, Params: ParamsSet, Met: MetDataArrays, z_pos:
         B[12,0] = np.cos(theta)*np.cos(psi)
         B[13,0] = np.cos(theta)*np.sin(psi)
         B[14,0] = np.sin(theta)
-        
-    dy = np.linalg.solve(A, B)
+    
+    Flag = 0
+    try:
+        dy = np.linalg.solve(A, B)
+    except:
+        dy = np.zeros_like(B)
+        Flag = 1
 
-    return dy, z_pos
+    return dy, z_pos, Flag
 
 
 @njit
