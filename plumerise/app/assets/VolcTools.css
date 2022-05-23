@@ -842,8 +842,8 @@ th {
 	width: fit-content;
 	vertical-align: center;
 	white-space: nowrap;
-	padding-left: 15px;
-	padding-right: 15px;
+	padding-left: 10px;
+	padding-right: 10px;
 }
 
 td.center {
@@ -1065,7 +1065,7 @@ input[type="radio"] {
 }
 
 .InputBox.sml {
-	width: 60px;
+	width: 80px;
 }
 
 .InputBox.invisible {

@@ -11,34 +11,37 @@ from .SolverParams import SolverSet
 
 class DistributedVariable():
 
-    def __init__(self, name: str, min: float, max: float, dist: str, param0: float, param1: float):
+    def __init__(self, name: str , dist: str, param0: float, param1: float, param2: float, param3: float):
 
         self.name = name
-        self.min = min
-        self.max = max
-        self.param0 = param0
-        self.param1 = param1
+        self.min = param0
+        self.max = param1
+        self.param0 = param2
+        self.param1 = param3
 
         match dist:
             case "Uniform":
-                self.dist = uniform(loc=min, scale=max-min)
+                self.dist = uniform(loc=param0, scale=param1-param0)
             case "TruncNorm":
-                a, b = (min - param0)/param1, (max-param0)/param1
-                self.dist = truncnorm(a, b, loc=param0, scale=param1)
+                a, b = (param0 - param2)/param3, (param1-param2)/param3
+                self.dist = truncnorm(a, b, loc=param2, scale=param3)
             case "LogNorm":
-                s = param1
-                self.dist = lognorm(s, loc=param0)
+                s = param3
+                self.dist = lognorm(s, loc=param2)
 
 
 def make_ensemble(sample_settings, design="LHC"):
 
     fixed = []
 
+    for p in Params:
+        label = p['label']
+        print(label)
+        print(sample_settings[label+'-fixed'])
+        if sample_settings[label+'-fixed']:
+            fixed.append({label: float(sample_settings[label+'-dist-param-0'])})
 
-    # for p in Params:
-    #     label = p['label']
-    #     if sample_settings[label+'']
-
+    print(fixed)
 
     return
 

@@ -91,6 +91,7 @@ def build_parameters_table_row(param):
                 min=param['min'],
                 max=param['max'],
                 value=param['default'],
+                placeholder="Minimum",
                 pattern="^(?=.)([+-]?([0-9]*)(\.(?[0-9]+))?)$",
             )
         ),
