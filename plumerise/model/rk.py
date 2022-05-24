@@ -1,22 +1,25 @@
+from functools import cache
+
 import numpy as np
 from numba import njit
 from numba.types import float64, int64, string
 
-from .IC import ICSet
+# from .IC import ICSet
 from .ice_eqns import fice
-from .MetDataSet import MetDataArrays
-from .ParamSet import ParamsSet
-from .SolverParams import SolverSet
+from .MetDataSet import Met_interp
+
+# from .ParamSet import ParamsSet
+# from .SolverParams import SolverSet
 
 
-@njit
+@njit(cache=True)
 def rkCK(
     y_in: np.ndarray,
     dy: np.ndarray,
     h: float64,
-    IC: ICSet,
-    Params: ParamsSet,
-    Met: MetDataArrays,
+    IC: np.ndarray,
+    Params: np.ndarray,
+    Met: np.ndarray,
     z_pos: int64,
     GasThrust: int64,
 ):
@@ -124,15 +127,15 @@ def rkCK(
     return y_out, y_err, Flag
 
 
-@njit
+@njit(cache=True)
 def rkstep(
     y: np.ndarray,
     dy: np.ndarray,
     h_in: float64,
-    IC: ICSet,
-    Params: ParamsSet,
-    SolParams: SolverSet,
-    Met: MetDataArrays,
+    IC: np.ndarray,
+    Params: np.ndarray,
+    SolParams: np.ndarray,
+    Met: np.ndarray,
     z_pos: int64,
     GasThrust: int64,
 ):
@@ -150,7 +153,7 @@ def rkstep(
             return z_pos, np.zeros_like(y), h, h, solverFlag
         else:
             y_scal = np.abs(yt) + np.abs(h * dy) + np.finfo(np.float64).eps
-            errmax = np.max(y_err / y_scal) / SolParams.rtol
+            errmax = np.max(y_err / y_scal) / SolParams["rtol"][0]
 
         if errmax <= 1:
             break
@@ -159,7 +162,7 @@ def rkstep(
         htemp = np.maximum(np.abs(htemp), 0.1 * np.abs(h))
         h = np.abs(htemp) * np.sign(h)
 
-    if np.abs(h) < SolParams.MinStep:
+    if np.abs(h) < SolParams["MinStep"][0]:
         solverFlag = -1
 
     h_out = h
@@ -174,6 +177,6 @@ def rkstep(
         if y_out[j] < 0.0:
             y_out[j] = 0.0
 
-    h_next = np.minimum(h_next, SolParams.MaxStep)
+    h_next = np.minimum(h_next, SolParams["MaxStep"][0])
 
     return z_pos, y_out, h_out, h_next, solverFlag

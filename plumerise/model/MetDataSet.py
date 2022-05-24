@@ -6,7 +6,7 @@ import metpy.calc as mpcalc
 import metpy.units as mpunits
 import numpy as np
 from numba import jit, njit
-from numba.experimental import jitclass
+# from numba.experimental import jitclass
 from numba.types import float64, int64, string
 from siphon.simplewebservice.wyoming import WyomingUpperAir
 
@@ -97,9 +97,10 @@ def hunt(xx: np.ndarray, x: float64, jlo: int64):
     return jlo
 
 @njit(cache=True)
-def interp1angle(xy_list: np.ndarray, x_req: float64, jpos: int64):
+def interp1angle(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
     """ Interpolation within an angle data array where y data is contrained to be between 0 and 2*pi, or constant extrapolation outside.
-        Inputs: xy_list - contains x values in xy_list[:,0] and y values in xy_list[:,1];
+        Inputs: x [real[:]] -  contains x values;
+                y [real[:]] -  contains y values;
                 x_req [real] - the required x value;
                 jpos [integer] - a guess for where x-value would appear in the list (i.e. xy_list(jpos,0)<x_req<xy_list(jpos+1,0));
     
@@ -107,31 +108,31 @@ def interp1angle(xy_list: np.ndarray, x_req: float64, jpos: int64):
                  jpos [integer] - the location in the list with xy_list(jpos,1)<x_req<xy_list(jpos+1,1).
     """
         
-    Nx = len(xy_list[:,0])
+    Nx = x.shape[0]
       
-    if (x_req < xy_list[0,0]):
-        x1 = xy_list[0,0]
-        x2 = xy_list[1,0]
-        y1 = xy_list[0,1]
-        y2 = xy_list[1,1]
-    elif (x_req > xy_list[-1,0]):
-        x1 = xy_list[-1,0]
+    if (x_req < x[0]):
+        x1 = x[0]
+        x2 = x[1]
+        y1 = y[0]
+        y2 = y[1]
+    elif (x_req > x[-1]):
+        x1 = x[-1]
         x2 = x_req
-        y1 = xy_list[-1,1]
-        y2 = xy_list[-1,1]          
+        y1 = y[-1]
+        y2 = y[-1]          
     else:
         if (jpos>Nx):
-            j = locate(xy_list[:,0], x_req)
-            x1 = xy_list[j,0]
-            x2 = xy_list[j+1,0]
-            y1 = xy_list[j,1]
-            y2 = xy_list[j+1,1]
+            j = locate(x, x_req)
+            x1 = x[j]
+            x2 = x[j+1]
+            y1 = y[j]
+            y2 = y[j+1]
         else:
-          jpos = hunt(xy_list[:,0], x_req, jpos)
-          x1 = xy_list[jpos,0]
-          x2 = xy_list[jpos+1,0]
-          y1 = xy_list[jpos,1]
-          y2 = xy_list[jpos+1,1]
+          jpos = hunt(x[:], x_req, jpos)
+          x1 = x[jpos]
+          x2 = x[jpos+1]
+          y1 = y[jpos]
+          y2 = y[jpos+1]
       
     if (np.abs(y2-y1)>np.pi):
         if (y2>y1):
@@ -145,44 +146,45 @@ def interp1angle(xy_list: np.ndarray, x_req: float64, jpos: int64):
 
 
 @njit(cache=True)
-def interp1(xy_list: np.ndarray, x_req: float64, jpos: int64): 
+def interp1(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64): 
     """Linear interpolation within a data array, or extrapolation outside.
-       Inputs: xy_list - contains x values in xy_list[:,0] and y values in xy_list[:,1];
+       Inputs: x [real[:]] -  contains x values;
+               y [real[:]] -  contains y values;
                x_req - the required x value;
                jpos - a guess for where x-value would appear in the list (i.e. xy_list[jpos,0]<x_req<xy_list[jpos+1,0]);
        Outputs: y_req [float64] - the required y value from linear interpolation, or extrapolation;
                 jpos [integer] - the location in the list with xy_list[jpos,1]<y_req<xy_list[jpos+1,1].
     """
           
-    Nx = len(xy_list[:,0])
+    Nx = x.shape[0]
       
     if (Nx==1):
-        y_req = xy_list[0,1]
+        y_req = y[0]
         return y_req, 0
                         
-    if (x_req<xy_list[0,0]):
-        x1 = xy_list[0,0]
-        x2 = xy_list[1,0]
-        y1 = xy_list[0,1]
-        y2 = xy_list[1,1]
-    elif (x_req>xy_list[-1,0]):
-        x1 = xy_list[-1,0]
+    if (x_req<x[0]):
+        x1 = x[0]
+        x2 = x[1]
+        y1 = y[0]
+        y2 = y[1]
+    elif (x_req>x[-1]):
+        x1 = x[-1]
         x2 = x_req
-        y1 = xy_list[-1,1]
-        y2 = xy_list[-1,1]
+        y1 = y[-1]
+        y2 = y[-1]
     else:
         if (jpos>Nx):
-            j = locate(xy_list[:,0], x_req)
-            x1 = xy_list[j,0]
-            x2 = xy_list[j+1,0]
-            y1 = xy_list[j,1]
-            y2 = xy_list[j+1,1]
+            j = locate(x, x_req)
+            x1 = x[j]
+            x2 = x[j+1]
+            y1 = y[j]
+            y2 = y[j+1]
         else:
-            jpos = hunt(xy_list[:,0], x_req, jpos)
-            x1 = xy_list[jpos,0]
-            x2 = xy_list[jpos+1,0]
-            y1 = xy_list[jpos,1]
-            y2 = xy_list[jpos+1,1]
+            jpos = hunt(x, x_req, jpos)
+            x1 = x[jpos]
+            x2 = x[jpos+1]
+            y1 = y[jpos]
+            y2 = y[jpos+1]
       
     y_req = y1 + (y2-y1)*(x_req-x1)/(x2-x1)
         
@@ -190,40 +192,41 @@ def interp1(xy_list: np.ndarray, x_req: float64, jpos: int64):
 
 
 @njit(cache=True)
-def interpexp(xy_list: np.ndarray, x_req: float64, jpos: int64):
+def interpexp(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
     """Exponential interpolation within a data array, or exponential extrapolation outside.
-    Inputs: xy_list - contains x values in xy_list[:,0] and y values in xy_list[:,1];
+    Inputs: x [real[:]] -  contains x values;
+            y [real[:]] -  contains y values;
             x_req - the required x value;
             jpos - a guess for where x-value would appear in the list (i.e. xy_list[jpos,0]<x_req<xy_list[jpos+1,0]);
     Outputs: y_req [float64] - the required y value from linear interpolation, or extrapolation;
              jpos [integer] - the location in the list with xy_list[jpos,1]<y_req<xy_list[jpos+1,1].
     """
         
-    Nx = len(xy_list[:,0])
+    Nx = x.shape[0]
       
-    if (x_req<xy_list[0,0]):
-        x1 = xy_list[0,0]
-        x2 = xy_list[1,0]
-        y1 = xy_list[0,1]
-        y2 = xy_list[1,1]
-    elif (x_req>xy_list[-1,0]):
-        x1 = xy_list[-2,0]
-        x2 = xy_list[-1,0]
-        y1 = xy_list[-2,1]
-        y2 = xy_list[-1,1]
+    if (x_req<x[0]):
+        x1 = x[0]
+        x2 = x[1]
+        y1 = y[0]
+        y2 = y[1]
+    elif (x_req>x[-1]):
+        x1 = x[-2]
+        x2 = x[-1]
+        y1 = y[-2]
+        y2 = y[-1]
     else:
         if (jpos>Nx):
-            j = locate(xy_list[:,0], x_req)
-            x1 = xy_list[j,0]
-            x2 = xy_list[j+1,0]
-            y1 = xy_list[j,1]
-            y2 = xy_list[j+1,1]
+            j = locate(x, x_req)
+            x1 = x[j]
+            x2 = x[j+1]
+            y1 = y[j]
+            y2 = y[j+1]
         else:
-            jpos = hunt(xy_list[:,0], x_req, jpos)
-            x1 = xy_list[jpos,0]
-            x2 = xy_list[jpos+1,0]
-            y1 = xy_list[jpos,1]
-            y2 = xy_list[jpos+1,1]
+            jpos = hunt(x, x_req, jpos)
+            x1 = x[jpos]
+            x2 = x[jpos+1]
+            y1 = y[jpos]
+            y2 = y[jpos+1]
       
     logy1 = np.log(y1)
     logy2 = np.log(y2)
@@ -235,62 +238,21 @@ def interpexp(xy_list: np.ndarray, x_req: float64, jpos: int64):
     return y_req, jpos
 
 
-MetDataArraysSpec = [
-    # MetData stores meteorological data.
-    # Each variable has values as function of height
-    ('height', float64[:]),
-    ('temperature', float64[:,:]),
-    ('pressure', float64[:,:]),
-    ('direction', float64[:,:]),
-    ('speed', float64[:,:]),
-    ('relhum', float64[:,:]),
-]
+def MetDataArray(height: np.ndarray, temperaure: np.ndarray, pressure: np.ndarray, direction: np.ndarray, speed: np.ndarray, relhum: np.ndarray):
+        
+        Met = np.zeros((height.shape[0], 6), dtype=np.float64)
+        Met[:,0] = height
 
-#@jitclass([('height', float64[:,:]), ('temperature', float64[:,:])])
-@jitclass(MetDataArraysSpec)
-class MetDataArrays(object):
-    height: np.ndarray
-    temperature: np.ndarray
-    pressure: np.ndarray
-    direction: np.ndarray
-    speed: np.ndarray
-    relhum: np.ndarray
+        Met[:,1] = temperaure
+        Met[:,2] = pressure
+        Met[:,3] = direction
+        Met[:,4] = speed
+        Met[:,5] = relhum
 
-    def __init__(self, height: np.ndarray, temperaure: np.ndarray, pressure: np.ndarray, direction: np.ndarray, speed: np.ndarray, relhum: np.ndarray):
-        # self.temperature = np.zeros((len(temperaure,2)), dtype=np.float64)
-        # self.pressure = np.zeros((len(pressure,2)), dtype=np.float64)
-        # self.direction = np.zeros((len(direction,2)), dtype=np.float64)
-        # self.speed = np.zeros((len(speed,2)), dtype=np.float64)
-        # self.relhum = np.zeros((len(relhum,2)), dtype=np.float64)
+        return Met
 
-        self.height = np.zeros((len(height)), dtype=np.float64)
-        self.temperature = np.zeros((len(temperaure),2), dtype=np.float64)
-        self.pressure = np.zeros((len(pressure),2), dtype=np.float64)
-        self.direction = np.zeros((len(direction),2), dtype=np.float64)
-        self.speed = np.zeros((len(speed),2), dtype=np.float64)
-        self.relhum = np.zeros((len(relhum),2), dtype=np.float64)
-
-        self.height[:] = height
-
-        self.temperature[:,0] = height
-        self.temperature[:,1] = temperaure
-
-
-        self.pressure[:,0] = height
-        self.pressure[:,1] = pressure
-
-        self.direction[:,0] = height
-        self.direction[:,1] = direction
-
-        self.speed[:,0] = height
-        self.speed[:,1] = speed
-
-        self.relhum[:,0] = height
-        self.relhum[:,1] = relhum
-
-        return
-
-    def interp(self, z: float64, z_pos: int64):
+@njit(cache=True)
+def Met_interp(Met: np.ndarray, z_in: float64, z_pos: int64):
         """MetDataArrays.interp : interpolate met data
         
             Inputs:
@@ -303,13 +265,26 @@ class MetDataArrays(object):
         
         """
 
-        vals = dict()
+        # vals_type = np.dtype([
+        #     ('psia', np.float64),
+        #     ('V', np.float64),
+        #     ('RH', np.float64),
+        #     ('Ta', np.float64),
+        #     ('Pa', np.float64),
+        #     ('dTadz', np.float64),
+        #     ('dPadz', np.float64),
+        # ])
 
-        psia, z_pos = interp1angle(self.direction, z, z_pos) # Interpolate to find wind direction - constant extrapolation.
-        V, z_pos = interp1(self.speed, z, z_pos) # Interpolate to find wind speed - constant extrapolation.
-        RH, z_pos = interp1(self.relhum, z, z_pos) # Interpolate to find relative humidity - constant extrapolation.
-        Ta, z_pos = interp1(self.temperature, z, z_pos) # Interpolate to find temperature - constant extrapolation.
-        Pa, z_pos = interpexp(self.pressure, z, z_pos) # Interpolate to find pressure - exponential interpolation and extrapolation.
+        z = Met[:,0]
+        Nz = z.shape[0]
+
+        psia, z_pos = interp1angle(z, Met[:,3], z_in, z_pos) # Interpolate to find wind direction - constant extrapolation.
+        V, z_pos = interp1(z, Met[:,4], z_in, z_pos) # Interpolate to find wind speed - constant extrapolation.
+        RH, z_pos = interp1(z, Met[:,5], z_in, z_pos) # Interpolate to find relative humidity - constant extrapolation.
+        Ta, z_pos = interp1(z, Met[:,1], z_in, z_pos) # Interpolate to find temperature - constant extrapolation.
+        Pa, z_pos = interpexp(z, Met[:,2], z_in, z_pos) # Interpolate to find pressure - exponential interpolation and extrapolation.
+
+        vals = dict()
 
         vals['psia'] = psia
         vals['V'] = V
@@ -317,26 +292,133 @@ class MetDataArrays(object):
         vals['Ta'] = Ta
         vals['Pa'] = Pa
 
+        temperature = Met[:,1]
         #! Find temperature gradient
         if (z_pos<0):
             raise ValueError('requested z in MetFieldInterp is below lowest height in Met data.')
-        elif (z_pos < self.temperature.shape[0]):
-            dTadz = (self.temperature[z_pos,1]-self.temperature[z_pos-1,1])/(self.temperature[z_pos,0]-self.temperature[z_pos-1,0])
+        elif (z_pos < Nz):
+            dTadz = (temperature[z_pos]-temperature[z_pos-1])/(z[z_pos]-z[z_pos-1])
         else:
             dTadz = 0.0
         vals['dTadz'] = dTadz
       
-        if (z_pos+1 < len(self.pressure[:,0])):
-            L = (np.log(self.pressure[z_pos+1,1]) - np.log(self.pressure[z_pos,1]))/(self.pressure[z_pos+1,0]-self.pressure[z_pos,0])
-            logA = np.log(self.pressure[z_pos,1]) - L*self.pressure[z_pos,0]
+        # Find pressure gradient
+        pressure = Met[:,2]
+        if (z_pos+1 < Nz):
+            L = (np.log(pressure[z_pos+1]) - np.log(pressure[z_pos]))/(z[z_pos+1]-z[z_pos])
+            logA = np.log(pressure[z_pos]) - L*z[z_pos]
         else:
-            L = (np.log(self.pressure[z_pos,1]) - np.log(self.pressure[z_pos-1,1]))/(self.pressure[z_pos,0]-self.pressure[z_pos-1,0])
-            logA = np.log(self.pressure[z_pos-1,1]) - L*self.pressure[z_pos-1,0]
+            L = (np.log(pressure[z_pos]) - np.log(pressure[z_pos-1]))/(z[z_pos]-z[z_pos-1])
+            logA = np.log(pressure[z_pos-1]) - L*z[z_pos-1]
         A = np.exp(logA)
-        dPadz = L*A*np.exp(L*z)
+        dPadz = L*A*np.exp(L*z_in)
         vals['dPadz'] = dPadz
       
         return vals, z_pos
+
+
+# MetDataArraysSpec = np.dtype([
+#     # MetData stores meteorological data.
+#     # Each variable has values as function of height
+#     ('height', float64[:]),
+#     ('temperature', float64[:,:]),
+#     ('pressure', float64[:,:]),
+#     ('direction', float64[:,:]),
+#     ('speed', float64[:,:]),
+#     ('relhum', float64[:,:]),
+# ])
+
+#@jitclass([('height', float64[:,:]), ('temperature', float64[:,:])])
+# @jitclass(MetDataArraysSpec)
+# class MetDataArrays(object):
+#     height: np.ndarray
+#     temperature: np.ndarray
+#     pressure: np.ndarray
+#     direction: np.ndarray
+#     speed: np.ndarray
+#     relhum: np.ndarray
+
+#     def __init__(self, height: np.ndarray, temperaure: np.ndarray, pressure: np.ndarray, direction: np.ndarray, speed: np.ndarray, relhum: np.ndarray):
+#         # self.temperature = np.zeros((len(temperaure,2)), dtype=np.float64)
+#         # self.pressure = np.zeros((len(pressure,2)), dtype=np.float64)
+#         # self.direction = np.zeros((len(direction,2)), dtype=np.float64)
+#         # self.speed = np.zeros((len(speed,2)), dtype=np.float64)
+#         # self.relhum = np.zeros((len(relhum,2)), dtype=np.float64)
+
+#         self.height = np.zeros((len(height)), dtype=np.float64)
+#         self.temperature = np.zeros((len(temperaure),2), dtype=np.float64)
+#         self.pressure = np.zeros((len(pressure),2), dtype=np.float64)
+#         self.direction = np.zeros((len(direction),2), dtype=np.float64)
+#         self.speed = np.zeros((len(speed),2), dtype=np.float64)
+#         self.relhum = np.zeros((len(relhum),2), dtype=np.float64)
+
+#         self.height[:] = height
+
+#         self.temperature[:,0] = height
+#         self.temperature[:,1] = temperaure
+
+
+#         self.pressure[:,0] = height
+#         self.pressure[:,1] = pressure
+
+#         self.direction[:,0] = height
+#         self.direction[:,1] = direction
+
+#         self.speed[:,0] = height
+#         self.speed[:,1] = speed
+
+#         self.relhum[:,0] = height
+#         self.relhum[:,1] = relhum
+
+#         return
+
+#     def interp(self, z: float64, z_pos: int64):
+#         """MetDataArrays.interp : interpolate met data
+        
+#             Inputs:
+#                 z [float] : height to get data
+#                 z_pos [integer] : estimate of the index of z in the data set
+            
+#             Outputs:
+#                 vals [dict] : dictionary of float values for each variable
+#                 z_pos [integer] : update index of z in the data set
+        
+#         """
+
+#         vals = dict()
+
+#         psia, z_pos = interp1angle(self.direction, z, z_pos) # Interpolate to find wind direction - constant extrapolation.
+#         V, z_pos = interp1(self.speed, z, z_pos) # Interpolate to find wind speed - constant extrapolation.
+#         RH, z_pos = interp1(self.relhum, z, z_pos) # Interpolate to find relative humidity - constant extrapolation.
+#         Ta, z_pos = interp1(self.temperature, z, z_pos) # Interpolate to find temperature - constant extrapolation.
+#         Pa, z_pos = interpexp(self.pressure, z, z_pos) # Interpolate to find pressure - exponential interpolation and extrapolation.
+
+#         vals['psia'] = psia
+#         vals['V'] = V
+#         vals['RH'] = RH
+#         vals['Ta'] = Ta
+#         vals['Pa'] = Pa
+
+#         #! Find temperature gradient
+#         if (z_pos<0):
+#             raise ValueError('requested z in MetFieldInterp is below lowest height in Met data.')
+#         elif (z_pos < self.temperature.shape[0]):
+#             dTadz = (self.temperature[z_pos,1]-self.temperature[z_pos-1,1])/(self.temperature[z_pos,0]-self.temperature[z_pos-1,0])
+#         else:
+#             dTadz = 0.0
+#         vals['dTadz'] = dTadz
+      
+#         if (z_pos+1 < len(self.pressure[:,0])):
+#             L = (np.log(self.pressure[z_pos+1,1]) - np.log(self.pressure[z_pos,1]))/(self.pressure[z_pos+1,0]-self.pressure[z_pos,0])
+#             logA = np.log(self.pressure[z_pos,1]) - L*self.pressure[z_pos,0]
+#         else:
+#             L = (np.log(self.pressure[z_pos,1]) - np.log(self.pressure[z_pos-1,1]))/(self.pressure[z_pos,0]-self.pressure[z_pos-1,0])
+#             logA = np.log(self.pressure[z_pos-1,1]) - L*self.pressure[z_pos-1,0]
+#         A = np.exp(logA)
+#         dPadz = L*A*np.exp(L*z)
+#         vals['dPadz'] = dPadz
+      
+#         return vals, z_pos
 
 
 @njit

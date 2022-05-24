@@ -8,12 +8,12 @@ from numba import njit, prange
 from pyDOE import lhs
 from scipy.stats import beta, truncnorm, uniform
 
-from .IC import ICSet
-from .MetDataSet import MetData, MetDataArrays
-from .ParamSet import ParamsSet
+from .IC import set_IC
+from .MetDataSet import MetData, MetDataArray
+from .ParamSet import set_params
 from .sampling_variables import Params
 from .solver import integrate, integrateICs
-from .SolverParams import SolverSet
+from .SolverParams import set_solver_params
 
 
 class DistributedVariable():
@@ -99,20 +99,20 @@ def solve_plume(vent_elevation,
                 met_data
     ):
     
-    IC = ICSet(z0=vent_elevation,
+    IC = set_IC(z0=vent_elevation,
                L0=vent_radius,
                n0=gas_mass_fraction,
                T0=source_temperature,
                U0=source_velocity)
 
-    Parameters = ParamsSet(rhos=pyroclast_density,
+    Parameters = set_params(rhos=pyroclast_density,
                            ks=ks,
                            kw=kw
     )
 
-    SolParams = SolverSet()
+    SolParams = set_solver_params()
 
-    Met = MetDataArrays(met_data["height"],
+    Met = MetDataArray(met_data["height"],
                         met_data["temperature"],
                         met_data["pressure"],
                         met_data["direction"],
@@ -122,9 +122,17 @@ def solve_plume(vent_elevation,
 
     IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Parameters, Met)
 
-    soln, _, _ = integrate(IC, Parameters, SolParams, Met, GasThrust, Condense, y_start)
+    plume_state, _, _, _ = integrate(IC, Parameters, SolParams, Met, GasThrust, Condense, y_start)
 
-    return {'Q0': soln.Q0, 'Hn': soln.Hn, 'Htop': soln.Htop, 'HtopL': soln.HtopL, 'HtopLg': soln.HtopLg, 'HCondense': soln.HCondense, 'Collapse': soln.Collapse}
+    return {
+        'Q0': plume_state['Q0'][0],
+        'Hn': plume_state['Hn'][0],
+        'Htop': plume_state['Htop'][0],
+        'HtopL': plume_state['HtopL'][0],
+        'HtopLg': plume_state['HtopLg'][0],
+        'HCondense': plume_state['HCondense'][0],
+        'Collapse': plume_state['Collapse'][0]
+    }
 
 
 def run_solve_plume(df, met_data):
