@@ -27,8 +27,6 @@ class DistributedVariable():
         self.param3 = param3
         self.dist_name = dist
 
-        print('Dist: ', dist)
-
         match dist:
             case "Uniform":
                 self.dist = uniform(loc=param0, scale=param1-param0)
@@ -54,12 +52,9 @@ def make_ensemble(sample_settings, ensemble_size, design="LHC"):
 
     for p in Params:
         label = p['label']
-        print(label)
-        print(sample_settings[label+'-fixed'])
         if sample_settings[label+'-fixed']:
             fixed.append({'name':label, 'value':float(sample_settings[label+'-dist-param-0'])})
         else:
-            print("dist = ", sample_settings[label+'-dist'])
             dists.append(DistributedVariable(
                 name=label,
                 dist=sample_settings[label+'-dist'],
@@ -112,12 +107,13 @@ def solve_plume(vent_elevation,
 
     SolParams = set_solver_params()
 
-    Met = MetDataArray(met_data["height"],
-                        met_data["temperature"],
-                        met_data["pressure"],
-                        met_data["direction"],
-                        met_data["speed"],
-                        met_data["relhum"]
+    Met = MetDataArray(
+        met_data[:,2],
+        met_data[:,0],
+        met_data[:,1],
+        met_data[:,3],
+        met_data[:,4],
+        met_data[:,5]
     )
 
     IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Parameters, Met)
@@ -125,80 +121,74 @@ def solve_plume(vent_elevation,
     plume_state, _, _, _ = integrate(IC, Parameters, SolParams, Met, GasThrust, Condense, y_start)
 
     return {
-        'Q0': plume_state['Q0'][0],
-        'Hn': plume_state['Hn'][0],
-        'Htop': plume_state['Htop'][0],
-        'HtopL': plume_state['HtopL'][0],
-        'HtopLg': plume_state['HtopLg'][0],
-        'HCondense': plume_state['HCondense'][0],
-        'Collapse': plume_state['Collapse'][0]
+        'Q0': plume_state['Q0'],
+        'Hn': plume_state['Hn'],
+        'Htop': plume_state['Htop'],
+        'HtopL': plume_state['HtopL'],
+        'HtopLg': plume_state['HtopLg'],
+        'HCondense': plume_state['HCondense'],
+        'Collapse': plume_state['Collapse']
     }
 
 
-def run_solve_plume(df, met_data):
-    for row in df.iterrows():
-        idx = row[0]
-        vent_elevation = row[1]['vent-elevation']
-        vent_radius = row[1]['vent-radius']
-        gas_mass_fraction = row[1]['gas-mass-fraction']
-        source_temperature = row[1]['source-temperature']
-        source_velocity = row[1]['source-velocity']
-        pyroclast_density = row[1]['pyroclast-density']
-        ks = row[1]['no-wind-entrainment-coef']
-        kw = row[1]['wind-entrainment-coef']
+def run_solve_plume(params,
+                    met_data
+):
+    vent_elevation = params[0]
+    vent_radius = params[1]
+    gas_mass_fraction = params[2]
+    source_temperature = params[3]
+    source_velocity = params[4]
+    pyroclast_density = params[5]
+    ks = params[6]
+    kw = params[7]
+
+    soln = solve_plume(
+            vent_elevation,
+            vent_radius,
+            gas_mass_fraction,
+            source_temperature,
+            source_velocity,
+            pyroclast_density,
+            ks,
+            kw,
+            met_data
+    )
+
+        # ret = [soln['Q0'],
+        #     soln['Hn'],
+        #     soln['Htop'],
+        #     soln['HtopL'],
+        #     soln['HtopLg'],
+        #     soln['HCondense'],
+        #     soln['Collapse']]
         
-        soln = solve_plume(vent_elevation,
-                vent_radius,
-                gas_mass_fraction,
-                source_temperature,
-                source_velocity,
-                pyroclast_density,
-                ks,
-                kw,
-                met_data
-        )
-
-        df.loc[idx, 'Q0'] = soln['Q0']
-        df.loc[idx, 'Hn'] = soln['Hn']
-        df.loc[idx, 'Htop'] = soln['Htop']
-        df.loc[idx, 'HtopL'] = soln['HtopL']
-        df.loc[idx, 'HtopLg'] = soln['HtopLg']
-        df.loc[idx, 'HCondense'] = soln['HCondense']
-        df.loc[idx, 'Collapse'] = soln['Collapse']
-
-        return df
+    ret = {
+        'Q0': soln['Q0'],
+        'Hn': soln['Hn'],
+        'Htop': soln['Htop'],
+        'HtopL': soln['HtopL'],
+        'HtopLg': soln['HtopLg'],
+        'HCondense': soln['HCondense'],
+        'Collapse': int(soln['Collapse'])
+    }
+    return ret
 
 
 def solve_ensemble(sample_settings, ensemble_size, met_data):
 
-    # Params = ParamsSet()
-    # SolParams = SolverSet()
-    # Met = MetDataArrays(met_data["height"],
-    #                     met_data["temperature"],
-    #                     met_data["pressure"],
-    #                     met_data["direction"],
-    #                     met_data["speed"],
-    #                     met_data["relhum"]
-    # )
-    # IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Params, Met)
-    # soln, solverFlag, msg = integrate(
-    #     IC, Params, SolParams, Met, GIC = ICSet()asThrust, Condense, y_start
-    # )
+    met_data = np.array(met_data)
 
     df = make_ensemble(sample_settings, ensemble_size)
 
     num_cores = mp.cpu_count()-1
-    chunk_size = int(df.shape[0]/num_cores)
-    chunks =[df.iloc[df.index[i:i+chunk_size]] for i in range(0, df.shape[0], chunk_size)]
     with mp.Pool(num_cores) as pool:
-        result = pool.map(partial(run_solve_plume, met_data=met_data), chunks)
+        results = pool.map(partial(run_solve_plume, met_data=met_data), list(df.itertuples(index=False, name=None)))
     
-    for i in range(len(result)):
-        df.iloc[result[i].index] = result[i]
+    df_out = pd.DataFrame(results)
+    print(df_out)
 
-    print(df)
-
-    return df
+    return pd.merge(df, df_out, left_index=True, right_index=True)
 
 
 

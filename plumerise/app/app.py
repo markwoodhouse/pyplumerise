@@ -6,17 +6,15 @@ from turtle import color
 import dash
 import dash_bootstrap_components as dbc
 import dash_daq as daq
+import diskcache
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from dash import callback_context  # type: ignore
-# from dash import dcc  # import dash_core_components as dcc
-# from dash import html  # import dash_html_components as html
-# from dash.dependencies import Input, Output, State
-from dash_extensions.enrich import (DashProxy, Input, MultiplexerTransform,
-                                    Output, ServersideOutput,
-                                    ServersideOutputTransform, State, dcc,
-                                    html)
+from dash import dcc  # import dash_core_components as dcc
+from dash import html  # import dash_html_components as html
+from dash.dependencies import Input, Output, State
+from dash.long_callback import DiskcacheLongCallbackManager
 from flask_caching import Cache
 from geopy import distance
 from importlib_metadata import distributions
@@ -26,12 +24,17 @@ from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
 from plumerise.model.ensemble_solve import solve_ensemble
 
 from ..data import StationList
-from ..model import (ICSet, MetData, MetDataArrays, Params, ParamsSet,
-                     SolverSet, integrate, integrateICs, make_ensemble)
+from ..model import MetData, Params, solve_ensemble
 from ..utilities.number_tools import (float_string, lin_levels, lin_steps,
                                       log_levels, log_steps, nice_round_down,
                                       nice_round_up, sci_string)
 from ..utilities.string_tools import string_html, units_html
+
+# from dash_extensions.enrich import (DashProxy, Input, MultiplexerTransform,
+                                    # Output, ServersideOutput,
+                                    # ServersideOutputTransform, State, dcc,
+                                    # html)
+
 
 
 def GreatCircleDistance(lat, lon, lat0, lon0):
@@ -40,6 +43,8 @@ def GreatCircleDistance(lat, lon, lat0, lon0):
         return np.nan
     else:
         return distance.distance((lat0, lon0), (lat, lon)).km
+
+
 
 distributions = {
     "Uniform": "Uniform",
@@ -145,23 +150,28 @@ def build_params_table(Params):
 
 
 def make_dashboard():
-    # app = dash.Dash(
-    #     __name__,
-    #     external_stylesheets=[
-    #         dbc.themes.BOOTSTRAP,
-    #         dbc.icons.FONT_AWESOME,
-    #     ],
-    #     suppress_callback_exceptions=True,
-    # )
-    app = DashProxy(
+
+    cache = diskcache.Cache("./cache")
+    long_callback_manager = DiskcacheLongCallbackManager(cache)
+
+    app = dash.Dash(
         __name__,
         external_stylesheets=[
             dbc.themes.BOOTSTRAP,
             dbc.icons.FONT_AWESOME,
         ],
         suppress_callback_exceptions=True,
-        transforms=[ServersideOutputTransform(), MultiplexerTransform()],
     )
+    
+    # app = DashProxy(
+        # __name__,
+        # external_stylesheets=[
+            # dbc.themes.BOOTSTRAP,
+            # dbc.icons.FONT_AWESOME,
+        # ],
+        # suppress_callback_exceptions=True,
+        # transforms=[ServersideOutputTransform(), MultiplexerTransform()],
+    # )
 
     available_met = {
         "Wyoming": "Wyoming weather web",
@@ -286,6 +296,7 @@ def make_dashboard():
                                         max_date_allowed=date.today(),
                                         initial_visible_month=date.today(),
                                         date=date.today(),
+                                        display_format='DD/MM/YYYY',
                                         with_portal=True,
                                     ),
                                 ],
@@ -517,9 +528,11 @@ def make_dashboard():
             dcc.Store(id="met-date-store", storage_type="session"),
             dcc.Store(id="met-time-store", storage_type="session"),
             dcc.Store(id="params-valid-flag", storage_type="session"),
-            dcc.Store(id="met"),
-            dcc.Store(id="params"),
-            dcc.Store(id="ensemble"),
+            dcc.Store(id='modal-open', storage_type="session"),
+            dcc.Store(id="met", storage_type="session"),
+            dcc.Store(id="params", storage_type="session"),
+            dcc.Store(id="ensemble", storage_type="session"),
+            dcc.Store(id="ensemble-run-complete", storage_type="session"),
             html.Div(
                 className="header",
                 children=[
@@ -637,15 +650,25 @@ def make_dashboard():
     def store_time(time):
         return {"value": time}  # type:ignore
 
-    @app.callback(
-        Output("set-parameters-modal", "is_open"),
-        Input("set-parameters-button", "n_clicks"),
-        State("set-parameters-modal", "is_open")
-    )
-    def toggle_modal(n1, is_open):
-        if n1:
-            return not is_open
-        return is_open
+    # @app.callback(
+    #     Output("set-parameters-modal", "is_open"),
+    #     Input("modal-open", "data"),
+    #     State("set-parameters-modal", "is_open")
+    # )
+    # def toggle_modal(n1, is_open):
+    #     if n1:
+    #         return not is_open
+    #     return is_open
+    
+    # @app.callback(
+    #     Output("model-open", "value"),
+    #     Input("set-parameters-button", "n_clicks"),
+    #     State("set-parameters-modal", "is_open")
+    # )
+    # def toggle_modal_store(n1, is_open):
+    #     if n1:
+    #         return not is_open
+    #     return is_open
 
     @app.callback(
         Output("met-submit-button", "disabled"),
@@ -760,7 +783,7 @@ def make_dashboard():
             return False
 
     app.callback(
-        [Output("params-submit-button", "disabled")],
+        Output("params-submit-button", "disabled"),
         [Input(param['name'].lower().replace(' ','-') + "-choice", "value") for param in Params]
     )(activate_param_confirm)
 
@@ -777,32 +800,39 @@ def make_dashboard():
     )(activate_run_button)
 
     @app.callback(
-        [ServersideOutput("params", "data")],
         [Output("set-parameters-modal", "is_open"),
-         Output("run-ensemble-button", "disabled")],
-        [Input("params-submit-button", "n_clicks")],
+         Output("params", "data")
+        ],
+        [Input("params-submit-button", "n_clicks"),
+         Input("set-parameters-button", "n_clicks")],
         [(State(param['label']+"-choice", "value"), 
-         State(param['label']+"-dist", "value"), 
-         State(param['label']+"-dist-param-0", "value"), 
-         State(param['label']+"-dist-param-1", "value"), 
-         State(param['label']+"-dist-param-2", "value"), 
-         State(param['label']+"-dist-param-3", "value")) for param in Params],
+          State(param['label']+"-dist", "value"), 
+          State(param['label']+"-dist-param-0", "value"), 
+          State(param['label']+"-dist-param-1", "value"), 
+          State(param['label']+"-dist-param-2", "value"), 
+          State(param['label']+"-dist-param-3", "value")) for param in Params],
         prevent_initial_call=True
     )
-    def submit_params(clicked,*param_state):
+    def submit_params(submit_clicked, set_clicked, *param_state):
         changed_id = [p["prop_id"] for p in callback_context.triggered][0]
+        modal_open = False
+        if changed_id == "set-parameters-button.n_clicks":
+            modal_open = True
         if changed_id == "params-submit-button.n_clicks":
-            param_store = dict()
-            param_set = tuple(param_state[n:n+6] for n in range(0, len(param_state), 6))
-            for j, param in enumerate(Params):
-                label = param['label']
-                param_store[label+'-fixed'] = not param_set[j][0]
-                param_store[label+'-dist'] = param_set[j][1]
-                param_store[label+'-dist-param-0'] = param_set[j][2]
-                param_store[label+'-dist-param-1'] = param_set[j][3]
-                param_store[label+'-dist-param-2'] = param_set[j][4]
-                param_store[label+'-dist-param-3'] = param_set[j][5]
-            return param_store, False, False
+            modal_open = False
+        
+        param_store = dict()
+        param_set = tuple(param_state[n:n+6] for n in range(0, len(param_state), 6))
+        param_set = param_set[0]
+        for j, param in enumerate(Params):
+            label = param['label']
+            param_store[label+'-fixed'] = not param_state[j][0]
+            param_store[label+'-dist'] = param_state[j][1]
+            param_store[label+'-dist-param-0'] = param_state[j][2]
+            param_store[label+'-dist-param-1'] = param_state[j][3]
+            param_store[label+'-dist-param-2'] = param_state[j][4]
+            param_store[label+'-dist-param-3'] = param_state[j][5]
+        return modal_open, param_store
 
     def reset_param(clicked):
         changed_id = [p["prop_id"] for p in callback_context.triggered][0]
@@ -852,7 +882,7 @@ def make_dashboard():
     #     return elevation_range_0_placeholder, elevation_range_1_className
 
     @app.callback(
-        ServersideOutput("met", "data"),
+        Output("met", "data"),
         Output("met-extra-info-label", "children"),
         Output("met-extra-info-label", "className"),
         Input("met-submit-button", "n_clicks"),
@@ -921,23 +951,41 @@ def make_dashboard():
         else:
             return  None, None, "OutputBox invisible"
 
-    @app.callback(
-        ServersideOutput("ensemble", "data"),
+    @app.long_callback(
+        Output("ensemble", "data"),
+        Output("image-container", "children"),
         Input("run-ensemble-button", "n_clicks"),
         State("met", "data"),
         State("params", "data"),
         State("ensemble-size", "value"),
         prevent_initial_call=True,
+        manager=long_callback_manager,
     )
+    # @app.callback(
+    #     Output("ensemble", "data"),
+    #     Output("image-container", "children"),
+    #     Input("run-ensemble-button", "n_clicks"),
+    #     State("met", "data"),
+    #     State("params", "data"),
+    #     State("ensemble-size", "value"),
+    #     prevent_initial_call=True,
+    # )
     def ensemble_run(clicked, met_data, params_data, ensemble_size):
-        print(clicked)
+        
         changed_id = [p["prop_id"] for p in callback_context.triggered][0]
-        print('changed_id = ' ,changed_id)
         if changed_id == "run-ensemble-button.n_clicks":
 
             df = solve_ensemble(params_data, ensemble_size, met_data)
 
-            return df
+            fig = px.scatter(df, x='Q0', y='Htop', log_x=True)
+
+            images = html.Div(
+                        id="result-plot",
+                        className="imagehp",
+                        children=[dcc.Graph(id="ensemble-plot", figure=fig)],
+                    )
+
+            return df.to_dict('records'), images
 
 
     app.run_server(host="127.0.0.1", debug=True)

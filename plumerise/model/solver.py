@@ -117,7 +117,7 @@ def NextStep(
     return h
 
 
-@njit
+@njit(cache=True)
 def integrate(
     IC: np.ndarray,
     Params: np.ndarray,
@@ -224,6 +224,7 @@ def integrate(
     plume_state["HtopLg"] = (
         get_soln(soln, "z")[topPos] + get_soln(soln, "Lgaussian")[topPos]
     )
+    plume_state["Hn"] = NeutralHeight(soln)
 
     # match SolParams.StopCond:
     #     case 'Top' | 'HorizDistance':

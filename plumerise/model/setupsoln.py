@@ -217,7 +217,7 @@ def NeutralHeight(soln):
                 (rho[j + 1] - rhoAtm[j + 1]) - (rho[j] - rhoAtm[j])
             )
 
-        return Hneutral
+    return Hneutral
 
 
 # solnArraySpec = [

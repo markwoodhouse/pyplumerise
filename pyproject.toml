@@ -23,6 +23,9 @@ dash-mantine-components = "^0.8.0"
 geopy = "^2.2.0"
 dash-daq = "^0.5.0"
 pyDOE = "^0.3.8"
+diskcache = "^5.4.0"
+multiprocess = "^0.70.13"
+psutil = "^5.9.1"
 
 [tool.poetry.dev-dependencies]
 
