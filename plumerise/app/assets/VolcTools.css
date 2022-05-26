@@ -1054,7 +1054,6 @@ input[type="radio"] {
 	line-height: 15px;
 } */
 
-
 .InputBox {
 	width: 120px;
 	height: 25px;
@@ -1093,6 +1092,7 @@ input[type="radio"] {
 	line-height: 20px;
 	height: 20px;
 	margin-right: 5px;
+	color: #000;
 }
 
 .Select-value {
@@ -1109,9 +1109,26 @@ input[type="radio"] {
 	vertical-align: middle;
 }
 
+.Select-menu-outer {
+	display: block !important;
+}
+
+.Dropdown-label {
+	margin-right: 5px;
+}
+
 .Dropdown-label {
 	margin-right: 5px;
 	min-width: 65px;
+}
+
+.VirtualizedSelectOption {
+	font-weight: normal;
+	background-color: #f6f4f2;
+}
+
+.VirtualizedSelectFocusedOption {
+	background-color: #d0c8bf;
 }
 
 .SingleDatePickerInput {

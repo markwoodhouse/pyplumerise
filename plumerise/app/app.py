@@ -175,6 +175,13 @@ def make_dashboard():
 
     available_met = {
         "Wyoming": "Wyoming weather web",
+        # "GFS": "Global forecast system",
+    }
+
+    observables = {
+        "Htop": "Plume top centreline height",
+        "HtopLg": "Plume top Gaussian edge height",
+        "Hn": "Neutral height",
     }
 
     met_tab = html.Div(
@@ -239,28 +246,23 @@ def make_dashboard():
                         className="column column-two",
                         children=[
                             html.Div(
-                                className="formfield fflrg",
+                                className="flex-input-column",
                                 children=[
-                                    html.Div(
-                                        className="flex-input-column",
-                                        children=[
-                                            html.Label(
-                                                "Meteorological data source:",
-                                                className="Dropdown-label",
-                                            ),
-                                            dcc.Dropdown(
-                                                id="met-select",
-                                                options=[
-                                                    {"label": label, "value": value}
-                                                    for value, label in available_met.items()
-                                                ],
-                                                value="Wyoming",
-                                                clearable=False,
-                                                placeholder="Select a source",
-                                                # optionHeight=20,
-                                            ),
+                                    html.Label(
+                                        "Meteorological data source:",
+                                        className="Dropdown-label",
+                                    ),
+                                    dcc.Dropdown(
+                                        id="met-select",
+                                        options=[
+                                            {"label": label, "value": value}
+                                            for value, label in available_met.items()
                                         ],
-                                    )
+                                        value="Wyoming",
+                                        clearable=False,
+                                        placeholder="Select a source",
+                                        # optionHeight=20,
+                                    ),
                                 ],
                             ),
                             html.Div(
@@ -494,28 +496,166 @@ def make_dashboard():
                         id="run-ensemble",
                         className="column column-three",
                         children=[
-                            html.Button(
-                                className="button",
-                                id="run-ensemble-button",
-                                style={"width": "150px"},
-                                disabled=True,
-                                n_clicks=0,
+                            html.Div(
+                                className="row",
                                 children=[
-                                    html.I(
-                                        className="fas fa-solid fa-cogs",
-                                        style={"margin-right": "10px"},
+                                    html.Div(
+                                        className="formfield",
+                                        style={"width": "240px"},
+                                        children=[
+                                            html.Button(
+                                                className="button",
+                                                id="run-ensemble-button",
+                                                style={"width": "150px"},
+                                                disabled=True,
+                                                n_clicks=0,
+                                                children=[
+                                                    html.I(
+                                                        className="fas fa-solid fa-cogs",
+                                                        style={"margin-right": "10px"},
+                                                    ),
+                                                    html.Span(
+                                                        "Run simulations",
+                                                        style={"font-size": "10pt"},
+                                                    ),
+                                                ],
+                                            ),
+                                        ]
                                     ),
-                                    html.Span(
-                                        "Run simulations",
-                                        style={"font-size": "10pt"},
+                                    html.Div(
+                                        className="formfield",
+                                        style={"width": "240px"},
+                                        children=[
+                                            html.Button(
+                                                className="button",
+                                                id="cancel-ensemble-button",
+                                                style={"width": "150px"},
+                                                disabled=True,
+                                                n_clicks=0,
+                                                children=[
+                                                    html.I(
+                                                        className="fas fa-solid fa-ban",
+                                                        style={"margin-right": "10px"},
+                                                    ),
+                                                    html.Span(
+                                                        "Cancel simulations",
+                                                        style={"font-size": "10pt"},
+                                                    ),
+                                                ],
+                                            ),
+                                        ]
+                                    ),
+                                ]
+                            )
+                        ]
+                    ),
+                    html.Div(
+                        id="obs-ensemble",
+                        className="column column-four invisible",
+                        children=[
+                            html.Div(
+                                className="formfield fflrg",
+                                children=[
+                                    html.H4("Set observation")
+                                ]
+                            ),
+                            html.Div(
+                                className="flex-input-column",
+                                children=[
+                                    html.Label(
+                                        "Observed quantity:",
+                                        className="Dropdown-label",
+                                    ),
+                                    dcc.Dropdown(
+                                        id="obs-select",
+                                        options=[
+                                            {"label": label, "value": value}
+                                            for value, label in observables.items()
+                                        ],
+                                        value="Htop",
+                                        clearable=False,
+                                        placeholder="Select observable",
+                                        optionHeight=25,
                                     ),
                                 ],
                             ),
+                            html.Div(
+                                className="formfield",
+                                children=[
+                                    html.Span("Range:")
+                                ]
+                            ),
+                            html.Div(
+                                className="formfield fflrg",
+                                children=[
+                                    html.Div(
+                                        children=[
+                                            html.Label(
+                                                children=["Minimum height (km):"],
+                                                className="Dropdown-label fl",
+                                            ),
+                                            dcc.Input(
+                                                id="obs-min-input",
+                                                name="obs-min-input",
+                                                className="InputBox sml",
+                                                type="number",
+                                                min=0,
+                                                placeholder="Minimum",
+                                            ),
+                                        ]
+                                    ),
+                                ]
+                            ),
+                            html.Div(
+                                className="formfield fflrg",
+                                children=[
+                                    html.Div(
+                                        children=[
+                                            html.Label(
+                                                children=["Maximum height (km):"],
+                                                className="Dropdown-label fl",
+                                            ),
+                                            dcc.Input(
+                                                id="obs-max-input",
+                                                name="obs-max-input",
+                                                className="InputBox sml",
+                                                type="number",
+                                                min=0,
+                                                placeholder="Maximum",
+                                            ),
+                                        ]
+                                    ),
+                                ]
+                            ),
+                            html.Div(
+                                className="flex-input-column",
+                                # style={"width": "240px"},
+                                children=[
+                                    html.Button(
+                                        className="button",
+                                        id="obs-button",
+                                        style={"width": "150px", "margin":"auto"},
+                                        disabled=True,
+                                        n_clicks=0,
+                                        children=[
+                                            html.I(
+                                                className="fas fa-solid fa-bullseye",
+                                                style={"margin-right": "10px"},
+                                            ),
+                                            html.Span(
+                                                "Set observation",
+                                                style={"font-size": "10pt"},
+                                            ),
+                                        ],
+                                    ),
+                                ]
+                            ),
                         ]
                     ),
-                    dbc.Modal(parameters_modal, id="set-parameters-modal", className="modal-content lrg", is_open=False, backdrop=False),
                 ]
-            )
+            ),
+
+            dbc.Modal(parameters_modal, id="set-parameters-modal", className="modal-content lrg", is_open=False, backdrop=False),
         ]
     )
 
@@ -533,6 +673,9 @@ def make_dashboard():
             dcc.Store(id="params", storage_type="session"),
             dcc.Store(id="ensemble", storage_type="session"),
             dcc.Store(id="ensemble-run-complete", storage_type="session"),
+            dcc.Store(id="obs-quantity", storage_type="session"),
+            dcc.Store(id="obs-min-store", storage_type="session"),
+            dcc.Store(id="obs-max-store", storage_type="session"),
             html.Div(
                 className="header",
                 children=[
@@ -544,7 +687,7 @@ def make_dashboard():
                     ),
                     html.Div(
                         className="modelTitle",
-                        children=[html.Span("PlumeRise Inversion")],
+                        children=[html.Span("PlumeRise Ensemble")],
                     ),
                 ],
             ),
@@ -557,6 +700,13 @@ def make_dashboard():
                         className="imagepane",
                         children=[
                             html.Div(
+                                id='ensemble-image',
+                                className="imagehp", children=[
+
+                                ]
+                            ),
+                            html.Div(
+                                id='obs-image',
                                 className="imagehp", children=[
 
                                 ]
@@ -649,6 +799,38 @@ def make_dashboard():
     )
     def store_time(time):
         return {"value": time}  # type:ignore
+    
+    @app.callback(
+        Output("obs-min-store", "data"),
+        Input("obs-min-input", "value"),
+        prevent_initial_call=True,
+    )
+    def store_obs_min(val):
+        return {"value": val}
+
+    @app.callback(
+        Output("obs-max-store", "data"),
+        Input("obs-max-input", "value"),
+        prevent_initial_call=True,
+    )
+    def store_obs_max(val):
+        return {"value": val}
+    
+    @app.callback(
+        Output("obs-button", "disabled"),
+        Input("obs-min-input", "value"),
+        Input("obs-max-input", "value"),
+        prevent_initial_call=True,
+    )
+    def activate_obs_button(minval, maxval):
+        if minval is None:
+            return True
+        if maxval is None:
+            return True
+        if minval>0 and maxval>=minval:
+            return False
+        return True
+
 
     # @app.callback(
     #     Output("set-parameters-modal", "is_open"),
@@ -952,24 +1134,22 @@ def make_dashboard():
             return  None, None, "OutputBox invisible"
 
     @app.long_callback(
-        Output("ensemble", "data"),
-        Output("image-container", "children"),
-        Input("run-ensemble-button", "n_clicks"),
-        State("met", "data"),
-        State("params", "data"),
-        State("ensemble-size", "value"),
+        output=dict(df_out=Output("ensemble", "data"),
+                    fig_out=Output("ensemble-image", "children"),
+                    obs_ensemble_class=Output("obs-ensemble", "className")),
+        inputs=dict(clicked=Input("run-ensemble-button", "n_clicks")),
+        state=dict(met_data=State("met", "data"),
+                   params_data=State("params", "data"),
+                   ensemble_size=State("ensemble-size", "value")
+        ),
+        running=[
+            # (Output("run-ensemble-button", "disabled"), True, False),
+            (Output("cancel-ensemble-button", "disabled"), False, True),
+        ],
+        cancel=[Input("cancel-ensemble-button", "n_clicks")],
         prevent_initial_call=True,
         manager=long_callback_manager,
     )
-    # @app.callback(
-    #     Output("ensemble", "data"),
-    #     Output("image-container", "children"),
-    #     Input("run-ensemble-button", "n_clicks"),
-    #     State("met", "data"),
-    #     State("params", "data"),
-    #     State("ensemble-size", "value"),
-    #     prevent_initial_call=True,
-    # )
     def ensemble_run(clicked, met_data, params_data, ensemble_size):
         
         changed_id = [p["prop_id"] for p in callback_context.triggered][0]
@@ -977,7 +1157,8 @@ def make_dashboard():
 
             df = solve_ensemble(params_data, ensemble_size, met_data)
 
-            fig = px.scatter(df, x='Q0', y='Htop', log_x=True)
+            # fig = px.scatter(df, x='Q0', y='Htop', log_x=True)
+            fig = make_ensemble_figure(df, color_column="source-temperature")
 
             images = html.Div(
                         id="result-plot",
@@ -985,7 +1166,194 @@ def make_dashboard():
                         children=[dcc.Graph(id="ensemble-plot", figure=fig)],
                     )
 
-            return df.to_dict('records'), images
+            obs_ensemble_class = "column column-four"
+
+            return dict(
+                df_out=df.to_dict('records'),
+                fig_out=images,
+                obs_ensemble_class=obs_ensemble_class
+                )
+
+
+    def make_ensemble_figure(df, color_column="source-temperature"):
+        
+        df['H_label'] = df["Htop"].apply(lambda x: sci_string(x/1e3, precision=2, start_sci=2))
+        df['Hn_label'] = df["Hn"].apply(lambda x: 0 if x<0 else sci_string(x/1e3, precision=2, start_sci=2))
+        df["Q_label"] = df["Q0"].apply(lambda x: sci_string(x, precision=2, start_sci=2))
+        df["Qs_label"] = df["Qs0"].apply(lambda x: sci_string(x, precision=2, start_sci=2))
+        df["Collapse_label"] = df["Collapse"].apply(lambda x: 'Collapsing column' if x==1.0 else 'Buoyant column')
+        df['Htop'] = df['Htop']/1e3
+
+        fig = go.Figure(
+            data=go.Scattergl(
+                x=df['Qs0'],
+                y=df['Htop'],
+                mode='markers',
+                marker=dict(
+                    color=df[color_column],
+                    colorscale='thermal',
+                    line_width=0,
+                    showscale=True,
+                ),
+                customdata=np.stack((df['Q_label'],
+                                     df['Qs_label'],
+                                     df['H_label'],
+                                     df['Hn_label'],
+                                     df['Collapse_label']), axis=-1
+                ),
+                hovertemplate="Total mass eruption rate = %{customdata[0]} kg/s<br>"
+                    + "Tephra mass eruption rate = %{customdata[1]} kg/s<br>"
+                    + "Plume top height = %{customdata[2]} km a.s.l.<br>"
+                    + "Neutral buoyancy height = %{customdata[3]} km a.s.l.<br>"
+                    + "%{customdata[4]}<br>"
+                    + "<extra></extra>",
+            )
+        )
+
+        Qmin = nice_round_down(df['Qs0'].min())
+        Qmax = nice_round_up(df['Qs0'].max())
+        Hmin = nice_round_down(df['Htop'].min())
+        Hmax = nice_round_up(df['Htop'].max())
+
+        fig.update_layout(
+            plot_bgcolor="#f8f6f4",
+            paper_bgcolor="#f8f6f4",
+            height=500,
+            margin={"l": 20, "r": 20, "t": 40, "b": 20},
+            hoverdistance=10,
+            hoverlabel=dict(
+                bgcolor="#efebe7",
+                font_size=12,
+                font_family="Source Sans",
+            ),
+            coloraxis_colorbar=dict(
+                title=color_column,
+            ),
+        )
+
+        fig.update_xaxes(
+            showgrid=True,
+            gridcolor="LightGrey",
+            zerolinecolor="DarkGrey",
+            exponentformat="power",
+            type="log",
+            range=[np.minimum(np.log10(Qmin), np.log10(Qmax)-1), np.maximum(np.log10(Qmax), np.log10(Qmin)+1)],
+            dtick=1,
+            title="Tephra mass eruption rate (kg/s)",
+            minor=dict(ticklen=4, tickcolor="LightGrey"),
+        )
+        fig.update_yaxes(
+            showgrid=True,
+            gridcolor="LightGrey",
+            zerolinecolor="DarkGrey",
+            # exponentformat="power",
+            range=[0, Hmax],
+            title="Plume top height (km a.s.l.)",
+            minor=dict(ticklen=4, tickcolor="LightGrey"),
+        )
+        return fig
+
+    @app.callback(
+        output=dict(fig_out=Output("obs-image", "children")),
+        inputs=dict(clicked=Input("obs-button", "n_clicks")),
+        state=dict(
+                   df_in=State("ensemble", "data"),
+                   params_data=State("params", "data"),
+                   obs=State("obs-select", "value"),
+                   obs_min=State("obs-min-store","data"),
+                   obs_max=State("obs-max-store","data"),
+        ),
+        prevent_initial_call=True,
+    )
+    def infer_from_ensemble(clicked, df_in, params_data, obs, obs_min, obs_max):
+        changed_id = [p["prop_id"] for p in callback_context.triggered][0]
+        if changed_id == "obs-button.n_clicks":
+
+            hmin = float(obs_min['value'])
+            hmax = float(obs_max['value'])
+
+            df = DataFrame(df_in)
+            
+            df = df.loc[(df[obs]>= hmin) & (df[obs]<=hmax)]
+
+            df['log_Qs0'] = np.log10(df["Qs0"])
+
+            # Qmin = nice_round_down(df['log_Qs0'].min())
+            # Qmax = nice_round_up(df['log_Qs0'].min())
+
+            hist, bin_edges = np.histogram(df['log_Qs0'], density=False)
+            hist = hist/df.shape[0]
+            bin_mid = 0.5*(bin_edges[1:]+bin_edges[:-1])
+            bin_width = bin_edges[1:]-bin_edges[:-1]
+            Qbins = np.power(10, bin_edges)
+            Qbin_mid = 0.5*(Qbins[1:]+Qbins[:-1])
+            Qbin_width = Qbins[1:]-Qbins[:-1]
+            Qbins = [sci_string(b, precision=2, start_sci=2) for b in Qbins]
+
+            fig = go.Figure()
+
+            fig.add_trace(
+                go.Bar(
+                    x = Qbin_mid,
+                    y = hist,
+                    width = Qbin_width,
+                    marker =dict(color='#1d91c0',),
+                    opacity=0.75,
+                )
+            )
+            
+            # fig.add_trace(
+            #     go.Histogram(
+            #         x=df['Qs0'],
+            #         histnorm='probability',
+            #         marker_color='#1d91c0',
+            #         opacity=0.75,
+            #         # hovertemplate="Tephra mass eruption rate (kg/s): %{customdata[1]} kg/s<br>"
+            #             # + "Plume top height = %{customdata[2]} km a.s.l.<br>"
+            #             # + "Neutral buoyancy height = %{customdata[3]} km a.s.l.<br>"
+            #             # + "%{customdata[4]}<br>"
+            #             # + "<extra></extra>",
+            #         # )
+            # )
+
+            fig.update_layout(
+                plot_bgcolor="#f8f6f4",
+                paper_bgcolor="#f8f6f4",
+                height=500,
+                margin={"l": 20, "r": 20, "t": 40, "b": 20},
+                hoverdistance=10,
+                hoverlabel=dict(
+                    bgcolor="#efebe7",
+                    font_size=12,
+                    font_family="Source Sans",
+                ),
+            )
+
+            fig.update_xaxes(
+                showgrid=True,
+                gridcolor="LightGrey",
+                zerolinecolor="DarkGrey",
+                # dtick=1,
+                exponentformat="power",
+                type="log",
+                title="Tephra mass eruption rate (kg/s)",
+                minor=dict(ticklen=4, tickcolor="LightGrey"),
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridcolor="LightGrey",
+                zerolinecolor="DarkGrey",
+                title="Proportion in ensemble",
+                minor=dict(ticklen=4, tickcolor="LightGrey"),
+            )
+
+            images = html.Div(
+                id="obs-result-plot",
+                className="imagehp",
+                children=[dcc.Graph(id="obs-plot", figure=fig)],
+            )
+
+            return dict(fig_out=images)
 
 
     app.run_server(host="127.0.0.1", debug=True)

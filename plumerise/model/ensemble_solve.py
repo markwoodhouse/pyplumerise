@@ -122,6 +122,7 @@ def solve_plume(vent_elevation,
 
     return {
         'Q0': plume_state['Q0'],
+        'Qs0': plume_state['Qs0'],
         'Hn': plume_state['Hn'],
         'Htop': plume_state['Htop'],
         'HtopL': plume_state['HtopL'],
@@ -165,6 +166,7 @@ def run_solve_plume(params,
         
     ret = {
         'Q0': soln['Q0'],
+        'Qs0': soln['Qs0'],
         'Hn': soln['Hn'],
         'Htop': soln['Htop'],
         'HtopL': soln['HtopL'],

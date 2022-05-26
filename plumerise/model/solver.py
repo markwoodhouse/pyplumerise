@@ -139,6 +139,7 @@ def integrate(
     plume_state = dict()
 
     plume_state["Q0"] = np.pi * y_start[0][0]
+    plume_state["Qs0"] = (1.0 - IC["n0"][0]) * plume_state["Q0"]
     soln_pos = 0
     soln, z_pos, soln_pos = update_soln(
         soln, s0, y_start, Params, Met, SolParams, z_pos, soln_pos
