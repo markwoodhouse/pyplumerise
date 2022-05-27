@@ -1216,13 +1216,13 @@ def make_dashboard():
         Hmax = nice_round_up(df['Htop'].max())
 
         fig.update_layout(
-            plot_bgcolor="#f8f6f4",
-            paper_bgcolor="#f8f6f4",
+            plot_bgcolor="#efebe7",
+            paper_bgcolor="#efebe7",
             height=400,
             margin={"l": 20, "r": 20, "t": 40, "b": 20},
             hoverdistance=10,
             hoverlabel=dict(
-                bgcolor="#efebe7",
+                bgcolor="#f8f6f4",
                 font_size=12,
                 font_family="Source Sans",
             ),
@@ -1317,13 +1317,13 @@ def make_dashboard():
             # )
 
             fig.update_layout(
-                plot_bgcolor="#f8f6f4",
-                paper_bgcolor="#f8f6f4",
+                plot_bgcolor="#efebe7",
+                paper_bgcolor="#efebe7",
                 height=400,
                 margin={"l": 20, "r": 20, "t": 40, "b": 20},
                 hoverdistance=10,
                 hoverlabel=dict(
-                    bgcolor="#efebe7",
+                    bgcolor="#f8f6f4",
                     font_size=12,
                     font_family="Source Sans",
                 ),
