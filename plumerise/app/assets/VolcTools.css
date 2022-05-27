@@ -549,7 +549,7 @@ button.validate:disabled {
 	overflow-x: scroll;
 	overflow-y: hidden;
 	white-space: nowrap;
-	line-height: 420px;
+	/* line-height: 420px; */
 }
 
 .imagehp {
