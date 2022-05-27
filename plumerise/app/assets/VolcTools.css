@@ -544,8 +544,16 @@ button.validate:disabled {
 	height: 60px;
 }
 
+.imagepane {
+	height: 420px;
+	overflow-x: scroll;
+	overflow-y: hidden;
+	white-space: nowrap;
+	line-height: 420px;
+}
+
 .imagehp {
-	height: 500px;
+	height: 400px;
 	padding: 2px;
 	display: inline-block;
 	cursor: pointer;

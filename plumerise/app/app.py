@@ -1218,7 +1218,7 @@ def make_dashboard():
         fig.update_layout(
             plot_bgcolor="#f8f6f4",
             paper_bgcolor="#f8f6f4",
-            height=500,
+            height=400,
             margin={"l": 20, "r": 20, "t": 40, "b": 20},
             hoverdistance=10,
             hoverlabel=dict(
@@ -1319,7 +1319,7 @@ def make_dashboard():
             fig.update_layout(
                 plot_bgcolor="#f8f6f4",
                 paper_bgcolor="#f8f6f4",
-                height=500,
+                height=400,
                 margin={"l": 20, "r": 20, "t": 40, "b": 20},
                 hoverdistance=10,
                 hoverlabel=dict(
