@@ -10,7 +10,7 @@ import diskcache
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import callback_context  # type: ignore
+from dash import ctx  # type: ignore
 from dash import dcc  # import dash_core_components as dcc
 from dash import html  # import dash_html_components as html
 from dash.dependencies import Input, Output, State
@@ -575,7 +575,7 @@ def make_dashboard():
                                         value="Htop",
                                         clearable=False,
                                         placeholder="Select observable",
-                                        optionHeight=25,
+                                        optionHeight=35,
                                     ),
                                 ],
                             ),
@@ -996,7 +996,7 @@ def make_dashboard():
         prevent_initial_call=True
     )
     def submit_params(submit_clicked, set_clicked, *param_state):
-        changed_id = [p["prop_id"] for p in callback_context.triggered][0]
+        changed_id = [p["prop_id"] for p in ctx.triggered][0]
         modal_open = False
         if changed_id == "set-parameters-button.n_clicks":
             modal_open = True
@@ -1017,7 +1017,7 @@ def make_dashboard():
         return modal_open, param_store
 
     def reset_param(clicked):
-        changed_id = [p["prop_id"] for p in callback_context.triggered][0]
+        changed_id = [p["prop_id"] for p in ctx.triggered][0]
         if changed_id == "params-reset-button.n_clicks":
             out = []
             for param in Params:
@@ -1079,7 +1079,7 @@ def make_dashboard():
         clicked, met_source, met_latitude, met_longitude, met_date, met_time
     ):
 
-        changed_id = [p["prop_id"] for p in callback_context.triggered][0]
+        changed_id = [p["prop_id"] for p in ctx.triggered][0]
         if changed_id == "met-submit-button.n_clicks":
 
             met_datetime = datetime.fromisoformat(met_date['value']+' '+met_time['value'])
@@ -1137,10 +1137,12 @@ def make_dashboard():
         output=dict(df_out=Output("ensemble", "data"),
                     fig_out=Output("ensemble-image", "children"),
                     obs_ensemble_class=Output("obs-ensemble", "className")),
-        inputs=dict(clicked=Input("run-ensemble-button", "n_clicks")),
+        inputs=dict(clicked=Input("run-ensemble-button", "n_clicks"),
+                    Hvar=Input("obs-select", "value")),
         state=dict(met_data=State("met", "data"),
                    params_data=State("params", "data"),
-                   ensemble_size=State("ensemble-size", "value")
+                   ensemble_size=State("ensemble-size", "value"),
+                   df_in=State("ensemble", "data"),
         ),
         running=[
             # (Output("run-ensemble-button", "disabled"), True, False),
@@ -1150,15 +1152,15 @@ def make_dashboard():
         prevent_initial_call=True,
         manager=long_callback_manager,
     )
-    def ensemble_run(clicked, met_data, params_data, ensemble_size):
+    def ensemble_run(clicked, Hvar, met_data, params_data, ensemble_size, df_in):
         
-        changed_id = [p["prop_id"] for p in callback_context.triggered][0]
-        if changed_id == "run-ensemble-button.n_clicks":
+        changed_id = [p["prop_id"] for p in ctx.triggered][0]
+        if ctx.triggered_id == "run-ensemble-button":
 
             df = solve_ensemble(params_data, ensemble_size, met_data)
 
             # fig = px.scatter(df, x='Q0', y='Htop', log_x=True)
-            fig = make_ensemble_figure(df, color_column="source-temperature")
+            fig = make_ensemble_figure(df, Hvar, color_column="source-temperature")
 
             images = html.Div(
                         id="result-plot",
@@ -1172,22 +1174,44 @@ def make_dashboard():
                 df_out=df.to_dict('records'),
                 fig_out=images,
                 obs_ensemble_class=obs_ensemble_class
-                )
-
-
-    def make_ensemble_figure(df, color_column="source-temperature"):
+            )
         
-        df['H_label'] = df["Htop"].apply(lambda x: sci_string(x/1e3, precision=2, start_sci=2))
+        elif ctx.triggered_id == "obs-select":
+
+            df = DataFrame(df_in)
+
+            fig = make_ensemble_figure(df, Hvar, color_column="source-temperature")
+
+            images = html.Div(
+                id="result-plot",
+                className="imagehp",
+                children=[dcc.Graph(id="ensemble-plot", figure=fig)],
+            )
+
+            obs_ensemble_class = "column column-four"
+
+            return dict(
+                df_out=df_in,
+                fig_out=images,
+                obs_ensemble_class=obs_ensemble_class
+            )
+
+
+    def make_ensemble_figure(df, Hvar, color_column="source-temperature"):
+        
+        
+        df['Htop_label'] = df["Htop"].apply(lambda x: sci_string(x/1e3, precision=2, start_sci=2))
         df['Hn_label'] = df["Hn"].apply(lambda x: 0 if x<0 else sci_string(x/1e3, precision=2, start_sci=2))
+        df['HtopLg_label'] = df["HtopLg"].apply(lambda x: 0 if x<0 else sci_string(x/1e3, precision=2, start_sci=2))
         df["Q_label"] = df["Q0"].apply(lambda x: sci_string(x, precision=2, start_sci=2))
         df["Qs_label"] = df["Qs0"].apply(lambda x: sci_string(x, precision=2, start_sci=2))
         df["Collapse_label"] = df["Collapse"].apply(lambda x: 'Collapsing column' if x==1.0 else 'Buoyant column')
-        df['Htop'] = df['Htop']/1e3
+        df[Hvar] = df[Hvar]
 
         fig = go.Figure(
             data=go.Scattergl(
                 x=df['Qs0'],
-                y=df['Htop'],
+                y=df[Hvar]/1e3,
                 mode='markers',
                 marker=dict(
                     color=df[color_column],
@@ -1197,7 +1221,7 @@ def make_dashboard():
                 ),
                 customdata=np.stack((df['Q_label'],
                                      df['Qs_label'],
-                                     df['H_label'],
+                                     df['Htop_label'],
                                      df['Hn_label'],
                                      df['Collapse_label']), axis=-1
                 ),
@@ -1212,8 +1236,8 @@ def make_dashboard():
 
         Qmin = nice_round_down(df['Qs0'].min())
         Qmax = nice_round_up(df['Qs0'].max())
-        Hmin = nice_round_down(df['Htop'].min())
-        Hmax = nice_round_up(df['Htop'].max())
+        Hmin = nice_round_down(df[Hvar].min()/1e3)
+        Hmax = nice_round_up(df[Hvar].max()/1e3)
 
         fig.update_layout(
             plot_bgcolor="#efebe7",
@@ -1248,7 +1272,7 @@ def make_dashboard():
             zerolinecolor="DarkGrey",
             # exponentformat="power",
             range=[0, Hmax],
-            title="Plume top height (km a.s.l.)",
+            title=observables[Hvar]+" (km a.s.l.)",
             minor=dict(ticklen=4, tickcolor="LightGrey"),
         )
         return fig
@@ -1266,7 +1290,7 @@ def make_dashboard():
         prevent_initial_call=True,
     )
     def infer_from_ensemble(clicked, df_in, params_data, obs, obs_min, obs_max):
-        changed_id = [p["prop_id"] for p in callback_context.triggered][0]
+        changed_id = [p["prop_id"] for p in ctx.triggered][0]
         if changed_id == "obs-button.n_clicks":
 
             hmin = float(obs_min['value'])
@@ -1274,7 +1298,7 @@ def make_dashboard():
 
             df = DataFrame(df_in)
             
-            df = df.loc[(df[obs]>= hmin) & (df[obs]<=hmax)]
+            df = df.loc[(df[obs]>= hmin*1000) & (df[obs]<=hmax*1000)]
 
             df['log_Qs0'] = np.log10(df["Qs0"])
 
@@ -1282,7 +1306,8 @@ def make_dashboard():
             # Qmax = nice_round_up(df['log_Qs0'].min())
 
             hist, bin_edges = np.histogram(df['log_Qs0'], density=False)
-            hist = hist/df.shape[0]
+            if df.shape[0]>0:
+                hist = hist/df.shape[0]
             bin_mid = 0.5*(bin_edges[1:]+bin_edges[:-1])
             bin_width = bin_edges[1:]-bin_edges[:-1]
             Qbins = np.power(10, bin_edges)
