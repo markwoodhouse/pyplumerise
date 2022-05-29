@@ -184,6 +184,14 @@ def make_dashboard():
         "Hn": "Neutral height",
     }
 
+    Outputs = ([
+            {"label": "Tephra mass eruption rate", "value":"Qs0"},
+            {"label": "Mass eruption rate", "value":"Q0"},
+        ]
+        + [{"label": label, "value": value} for value, label in observables.items()]
+        + [{"label": p['name'], "value": p['label']} for p in Params]
+    )
+
     met_tab = html.Div(
         className="pane",
         children=[
@@ -545,14 +553,34 @@ def make_dashboard():
                                             ),
                                         ]
                                     ),
-                                ]
+                                ],
                             )
                         ]
                     ),
                     html.Div(
                         id="obs-ensemble",
-                        className="column column-four invisible",
+                        className="column column-four", # invisible",
                         children=[
+                            html.Div(
+                                id="output-choice",
+                                className="flex-input-column", # invisible",
+                                # className="formfield",
+                                style={"padding-bottom": "5px"},
+                                children=[
+                                    html.Label(
+                                        "Quantity of interest:",
+                                        className="Dropdown-label",
+                                    ),
+                                    dcc.Dropdown(
+                                        id="output-select",
+                                        options=[{"label": p['label'], "value": p['value']} for p in Outputs],
+                                        value="Qs0",
+                                        clearable=False,
+                                        placeholder="Select output",
+                                        optionHeight=35,
+                                    ),
+                                ],
+                            ),
                             html.Div(
                                 className="formfield fflrg",
                                 children=[
@@ -1136,9 +1164,13 @@ def make_dashboard():
     @app.long_callback(
         output=dict(df_out=Output("ensemble", "data"),
                     fig_out=Output("ensemble-image", "children"),
-                    obs_ensemble_class=Output("obs-ensemble", "className")),
+                    obs_ensemble_class=Output("obs-ensemble", "className"),
+                    # color_choice_class=Output("output-choice", "className")
+        ),
         inputs=dict(clicked=Input("run-ensemble-button", "n_clicks"),
-                    Hvar=Input("obs-select", "value")),
+                    Hvar=Input("obs-select", "value"),
+                    Cvar=Input("output-select", "value"),
+        ),
         state=dict(met_data=State("met", "data"),
                    params_data=State("params", "data"),
                    ensemble_size=State("ensemble-size", "value"),
@@ -1152,22 +1184,27 @@ def make_dashboard():
         prevent_initial_call=True,
         manager=long_callback_manager,
     )
-    def ensemble_run(clicked, Hvar, met_data, params_data, ensemble_size, df_in):
+    def ensemble_run(clicked, Hvar, Cvar, met_data, params_data, ensemble_size, df_in):
         
-        changed_id = [p["prop_id"] for p in ctx.triggered][0]
-        if ctx.triggered_id == "run-ensemble-button":
 
-            df = solve_ensemble(params_data, ensemble_size, met_data)
+        if ctx.triggered_id in ["run-ensemble-button", "obs-select", "output-select"]:
 
-            # fig = px.scatter(df, x='Q0', y='Htop', log_x=True)
-            fig = make_ensemble_figure(df, Hvar, color_column="source-temperature")
+            if ctx.triggered_id == "run-ensemble-button":
+
+                df = solve_ensemble(params_data, ensemble_size, met_data)
+
+            elif ctx.triggered_id in ["obs-select", "output-select"]:
+
+                df = DataFrame(df_in)
+
+
+            fig = make_ensemble_figure(df, Hvar, color_column=Cvar)
 
             images = html.Div(
                         id="result-plot",
                         className="imagehp",
                         children=[dcc.Graph(id="ensemble-plot", figure=fig)],
                     )
-
             obs_ensemble_class = "column column-four"
 
             return dict(
@@ -1175,29 +1212,9 @@ def make_dashboard():
                 fig_out=images,
                 obs_ensemble_class=obs_ensemble_class
             )
-        
-        elif ctx.triggered_id == "obs-select":
-
-            df = DataFrame(df_in)
-
-            fig = make_ensemble_figure(df, Hvar, color_column="source-temperature")
-
-            images = html.Div(
-                id="result-plot",
-                className="imagehp",
-                children=[dcc.Graph(id="ensemble-plot", figure=fig)],
-            )
-
-            obs_ensemble_class = "column column-four"
-
-            return dict(
-                df_out=df_in,
-                fig_out=images,
-                obs_ensemble_class=obs_ensemble_class
-            )
 
 
-    def make_ensemble_figure(df, Hvar, color_column="source-temperature"):
+    def make_ensemble_figure(df, Hvar, color_column):
         
         
         df['Htop_label'] = df["Htop"].apply(lambda x: sci_string(x/1e3, precision=2, start_sci=2))
@@ -1208,15 +1225,28 @@ def make_dashboard():
         df["Collapse_label"] = df["Collapse"].apply(lambda x: 'Collapsing column' if x==1.0 else 'Buoyant column')
         df[Hvar] = df[Hvar]
 
+        color_title = next(item['label'] for item in Outputs if item['value'] == color_column)
+        match color_column:
+            case ['Qs0', 'Q0']:
+                df['color'] = np.log10(df[color_column])
+                color_title += ' (kg/s)'
+            case ['Htop', 'HtopLg', 'Hn']:
+                df['color'] = df[color_column]/1e3
+                color_title += ' (km)'
+            case _:
+                df['color'] = df[color_column]
+
+
         fig = go.Figure(
             data=go.Scattergl(
                 x=df['Qs0'],
                 y=df[Hvar]/1e3,
                 mode='markers',
                 marker=dict(
-                    color=df[color_column],
-                    colorscale='thermal',
-                    line_width=0,
+                    color=df['color'],
+                    colorscale='matter_r',
+                    opacity=0.5,
+                    line_width=1,
                     showscale=True,
                 ),
                 customdata=np.stack((df['Q_label'],
@@ -1250,9 +1280,17 @@ def make_dashboard():
                 font_size=12,
                 font_family="Source Sans",
             ),
-            coloraxis_colorbar=dict(
-                title=color_column,
-            ),
+        )
+
+        fig.update_coloraxes(
+            dict(
+                colorbar=dict(
+                    title=dict(
+                        text = color_title,
+                        side = 'right',
+                    )
+                )
+            )
         )
 
         fig.update_xaxes(
