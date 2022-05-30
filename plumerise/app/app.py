@@ -796,7 +796,6 @@ def make_dashboard():
     @app.callback(
         Output("met-source-store", "data"),
         Input("met-select", "value"),
-        prevent_initial_call=True,
     )
     def store_dataset(selected_dataset):
         return {"dataset": selected_dataset}  # type:ignore
@@ -804,7 +803,6 @@ def make_dashboard():
     @app.callback(
         Output("met-latitude-store", "data"),
         Input("latitude-input", "value"),
-        prevent_initial_call=True,
     )
     def store_latitude(latitude):
         return {"value": latitude}  # type:ignore
@@ -812,7 +810,6 @@ def make_dashboard():
     @app.callback(
         Output("met-longitude-store", "data"),
         Input("longitude-input", "value"),
-        prevent_initial_call=True,
     )
     def store_longitude(longitude):
         return {"value": longitude}  # type:ignore
@@ -820,7 +817,6 @@ def make_dashboard():
     @app.callback(
         Output("met-date-store", "data"),
         Input("met-date-picker", "date"),
-        prevent_initial_call=True,
     )
     def store_date(date):
         return {"value": date}  # type:ignore
@@ -828,7 +824,6 @@ def make_dashboard():
     @app.callback(
         Output("met-time-store", "data"),
         Input("met-time-input", "value"),
-        prevent_initial_call=True,
     )
     def store_time(time):
         return {"value": time}  # type:ignore
@@ -902,7 +897,12 @@ def make_dashboard():
         met_time,
     ):
 
-        if met_source["dataset"] == "":
+        # if met_source is None:
+        #     disabled = True
+        #     return disabled
+
+        # if met_source["dataset"] == "":
+        if met_source["dataset"] is None:
             disabled = True
             return disabled
 
@@ -1204,13 +1204,14 @@ def make_dashboard():
             + [{"label": label, "value": value} for value, label in observables.items()]
         )
 
-        var_params = get_distributed_params(param_set)
-        if var_params is None:
-            return Outputs, Outputs
-        
-        for label in var_params:
-            name = Params[label]['name']
-            Outputs.append({"label": name, "value": label})
+        if param_set is not None:
+
+            var_params = get_distributed_params(param_set)
+            if var_params is not None:
+            
+                for label in var_params:
+                    name = Params[label]['name']
+                    Outputs.append({"label": name, "value": label})
 
         return Outputs, Outputs
 
