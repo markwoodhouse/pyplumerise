@@ -14,7 +14,7 @@ def set_solver_params(
     MaxStep: float = 1.0e1,  # Default minimum rk step size
     InitStep: float = 1.0e-3,  # Default initial rk step size
     OutStep: float = 1.0,
-    MaxSolnPnts: int = 100000,  # Maximum number of solution points allowed by the solver.
+    MaxSolnPnts: int = 1000000,  # Maximum number of solution points allowed by the solver.
     invsolMaxIts: int = 50,  # Default maximum number of iterations for inverse solver
     invsolrtol: float = 1.0e-3,  # Default relative error tolerance for inverse solver
     invsolatol: float = 1.0e-1,  # Default absolute error tolerance for inverse solver

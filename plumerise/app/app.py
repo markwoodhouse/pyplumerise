@@ -57,7 +57,7 @@ truncnorm = {"dist-param-0": "Minimum", "dist-param-1": "Maximum", "dist-param-2
 beta = {"dist-param-0": "Minimum", "dist-param-1": "Maximum", "dist-param-2": "alpha", "dist-param-3": "beta"}
 
 
-def build_parameters_table_row(param):
+def build_parameters_table_row(label, param):
     if param['unit']:
         title = f"{param['name']} ({param['unit']})"
     else:
@@ -66,7 +66,7 @@ def build_parameters_table_row(param):
         html.Td(title),
         html.Td(
             daq.ToggleSwitch(
-                id=param['label']+"-choice",
+                id=label+"-choice",
                 label=["Fixed", "Uncertain"],
                 style={"width": "150px"},
                 value=False,
@@ -74,14 +74,14 @@ def build_parameters_table_row(param):
         ),
         html.Td(
             dbc.RadioItems(
-                id=param['label']+"-dist",
+                id=label+"-dist",
                 className="btn-group invisible",
                 inputClassName="btn-check",
                 labelClassName='btn btn-outline-primary',
                 labelCheckedClassName="active",
                 options=[
-                    {"label": label, "value": value}
-                    for value, label in distributions.items()
+                    {"label": dist_label, "value": dist_value}
+                    for dist_value, dist_label in distributions.items()
                 ],
                 value="Uniform",
                 # optionHeight=20,
@@ -89,8 +89,8 @@ def build_parameters_table_row(param):
         ),
         html.Td(
             dcc.Input(
-                id=param['label']+"-dist-param-0",
-                name=param['label']+"-dist-param-0",
+                id=label+"-dist-param-0",
+                name=label+"-dist-param-0",
                 className="InputBox sml",
                 type="number",
                 min=param['min'],
@@ -102,8 +102,8 @@ def build_parameters_table_row(param):
         ),
         html.Td(
             dcc.Input(
-                id=param['label']+"-dist-param-1",
-                name=param['label']+"-dist-param-1",
+                id=label+"-dist-param-1",
+                name=label+"-dist-param-1",
                 className="InputBox sml invisible",
                 type="number",
                 min=param['min'],
@@ -114,8 +114,8 @@ def build_parameters_table_row(param):
         ),
         html.Td(
             dcc.Input(
-                id=param['label']+"-dist-param-2",
-                name=param['label']+"-dist-param-2",
+                id=label+"-dist-param-2",
+                name=label+"-dist-param-2",
                 className="InputBox sml invisible",
                 type="number",
                 min=0,
@@ -125,8 +125,8 @@ def build_parameters_table_row(param):
         ),
         html.Td(
             dcc.Input(
-                id=param['label']+"-dist-param-3",
-                name=param['label']+"-dist-param-3",
+                id=label+"-dist-param-3",
+                name=label+"-dist-param-3",
                 className="InputBox sml invisible",
                 type="number",
                 min=0,
@@ -140,10 +140,10 @@ def build_parameters_table_row(param):
 
 def build_params_table(Params):
     table_rows = []
-    for param in Params:
+    for label, param in Params.items():
         table_rows.append(
             html.Tr(
-                children=build_parameters_table_row(param)
+                children=build_parameters_table_row(label, param)
             )
         )
     return table_rows
@@ -183,14 +183,6 @@ def make_dashboard():
         "HtopLg": "Plume top Gaussian edge height",
         "Hn": "Neutral height",
     }
-
-    Outputs = ([
-            {"label": "Tephra mass eruption rate", "value":"Qs0"},
-            {"label": "Mass eruption rate", "value":"Q0"},
-        ]
-        + [{"label": label, "value": value} for value, label in observables.items()]
-        + [{"label": p['name'], "value": p['label']} for p in Params]
-    )
 
     met_tab = html.Div(
         className="pane",
@@ -559,11 +551,11 @@ def make_dashboard():
                     ),
                     html.Div(
                         id="obs-ensemble",
-                        className="column column-four", # invisible",
+                        className="column column-four invisible",
                         children=[
                             html.Div(
                                 id="output-choice",
-                                className="flex-input-column", # invisible",
+                                className="flex-input-column",
                                 # className="formfield",
                                 style={"padding-bottom": "5px"},
                                 children=[
@@ -573,7 +565,14 @@ def make_dashboard():
                                     ),
                                     dcc.Dropdown(
                                         id="output-select",
-                                        options=[{"label": p['label'], "value": p['value']} for p in Outputs],
+                                        options=(
+                                            [
+                                                {"label": "Tephra mass eruption rate", "value":"Qs0"},
+                                                {"label": "Mass eruption rate", "value":"Q0"},
+                                            ]
+                                            + [{"label": label, "value": value} for value, label in observables.items()]
+                                            + [{"label": p['name'], "value": label} for label, p in Params.items()]
+                                        ),
                                         value="Qs0",
                                         clearable=False,
                                         placeholder="Select output",
@@ -701,6 +700,7 @@ def make_dashboard():
             dcc.Store(id="params", storage_type="session"),
             dcc.Store(id="ensemble", storage_type="session"),
             dcc.Store(id="ensemble-run-complete", storage_type="session"),
+            dcc.Store(id="out-quantity", storage_type="session"),
             dcc.Store(id="obs-quantity", storage_type="session"),
             dcc.Store(id="obs-min-store", storage_type="session"),
             dcc.Store(id="obs-max-store", storage_type="session"),
@@ -796,6 +796,7 @@ def make_dashboard():
     @app.callback(
         Output("met-source-store", "data"),
         Input("met-select", "value"),
+        prevent_initial_call=True,
     )
     def store_dataset(selected_dataset):
         return {"dataset": selected_dataset}  # type:ignore
@@ -803,6 +804,7 @@ def make_dashboard():
     @app.callback(
         Output("met-latitude-store", "data"),
         Input("latitude-input", "value"),
+        prevent_initial_call=True,
     )
     def store_latitude(latitude):
         return {"value": latitude}  # type:ignore
@@ -810,6 +812,7 @@ def make_dashboard():
     @app.callback(
         Output("met-longitude-store", "data"),
         Input("longitude-input", "value"),
+        prevent_initial_call=True,
     )
     def store_longitude(longitude):
         return {"value": longitude}  # type:ignore
@@ -817,6 +820,7 @@ def make_dashboard():
     @app.callback(
         Output("met-date-store", "data"),
         Input("met-date-picker", "date"),
+        prevent_initial_call=True,
     )
     def store_date(date):
         return {"value": date}  # type:ignore
@@ -824,6 +828,7 @@ def make_dashboard():
     @app.callback(
         Output("met-time-store", "data"),
         Input("met-time-input", "value"),
+        prevent_initial_call=True,
     )
     def store_time(time):
         return {"value": time}  # type:ignore
@@ -887,6 +892,7 @@ def make_dashboard():
         Input("met-longitude-store", "data"),
         Input("met-date-store", "data"),
         Input("met-time-store", "data"),
+        prevent_initial_call=True,
     )
     def activate_met_button(
         met_source,
@@ -966,22 +972,22 @@ def make_dashboard():
         
         return dist_className, param1_className, param2_className, param3_className, param0_placeholder, param1_placeholder, param2_placeholder, param3_placeholder
 
-    for param in Params:
+    for label in Params.keys():
         app.callback(
-            Output(param['label']+"-dist", "className"),
-            Output(param['label']+"-dist-param-1", "className"),
-            Output(param['label']+"-dist-param-2", "className"),
-            Output(param['label']+"-dist-param-3", "className"),
-            Output(param['label']+"-dist-param-0", "placeholder"),
-            Output(param['label']+'-dist-param-1', 'placeholder'),
-            Output(param['label']+'-dist-param-2', 'placeholder'),
-            Output(param['label']+'-dist-param-3', 'placeholder'),
-            Input(param['label']+"-choice", "value"),
-            Input(param['label']+"-dist", "value"),
-            Input(param['label']+"-dist", "className"),
-            Input(param['label']+"-dist-param-1", "className"),
-            Input(param['label']+"-dist-param-2", "className"),
-            Input(param['label']+"-dist-param-3", "className"),
+            Output(label+"-dist", "className"),
+            Output(label+"-dist-param-1", "className"),
+            Output(label+"-dist-param-2", "className"),
+            Output(label+"-dist-param-3", "className"),
+            Output(label+"-dist-param-0", "placeholder"),
+            Output(label+'-dist-param-1', 'placeholder'),
+            Output(label+'-dist-param-2', 'placeholder'),
+            Output(label+'-dist-param-3', 'placeholder'),
+            Input(label+"-choice", "value"),
+            Input(label+"-dist", "value"),
+            Input(label+"-dist", "className"),
+            Input(label+"-dist-param-1", "className"),
+            Input(label+"-dist-param-2", "className"),
+            Input(label+"-dist-param-3", "className"),
             prevent_initial_call=True
         )(param_settings)
 
@@ -994,7 +1000,8 @@ def make_dashboard():
 
     app.callback(
         Output("params-submit-button", "disabled"),
-        [Input(param['name'].lower().replace(' ','-') + "-choice", "value") for param in Params]
+        [Input(label + "-choice", "value") for label in Params.keys()],
+        prevent_initial_call=True
     )(activate_param_confirm)
 
 
@@ -1015,61 +1022,73 @@ def make_dashboard():
         ],
         [Input("params-submit-button", "n_clicks"),
          Input("set-parameters-button", "n_clicks")],
-        [(State(param['label']+"-choice", "value"), 
-          State(param['label']+"-dist", "value"), 
-          State(param['label']+"-dist-param-0", "value"), 
-          State(param['label']+"-dist-param-1", "value"), 
-          State(param['label']+"-dist-param-2", "value"), 
-          State(param['label']+"-dist-param-3", "value")) for param in Params],
+        [(State(label+"-choice", "value"), 
+          State(label+"-dist", "value"), 
+          State(label+"-dist-param-0", "value"), 
+          State(label+"-dist-param-1", "value"), 
+          State(label+"-dist-param-2", "value"), 
+          State(label+"-dist-param-3", "value")) for label in Params.keys()],
         prevent_initial_call=True
     )
     def submit_params(submit_clicked, set_clicked, *param_state):
-        changed_id = [p["prop_id"] for p in ctx.triggered][0]
+        # changed_id = [p["prop_id"] for p in ctx.triggered][0]
+        changed_id = ctx.triggered_id
         modal_open = False
-        if changed_id == "set-parameters-button.n_clicks":
+        if changed_id == "set-parameters-button":
             modal_open = True
-        if changed_id == "params-submit-button.n_clicks":
+        if changed_id == "params-submit-button":
             modal_open = False
         
         param_store = dict()
-        param_set = tuple(param_state[n:n+6] for n in range(0, len(param_state), 6))
-        param_set = param_set[0]
-        for j, param in enumerate(Params):
-            label = param['label']
-            param_store[label+'-fixed'] = not param_state[j][0]
-            param_store[label+'-dist'] = param_state[j][1]
-            param_store[label+'-dist-param-0'] = param_state[j][2]
-            param_store[label+'-dist-param-1'] = param_state[j][3]
-            param_store[label+'-dist-param-2'] = param_state[j][4]
-            param_store[label+'-dist-param-3'] = param_state[j][5]
+        # param_set = tuple(param_state[n:n+6] for n in range(0, len(param_state), 6))
+        # param_set = param_set[0]
+        for j, label in enumerate(Params.keys()):
+            # label = param['label']
+            # param_store[label+'-fixed'] = not param_state[j][0]
+            # param_store[label+'-dist'] = param_state[j][1]
+            # param_store[label+'-dist-param-0'] = param_state[j][2]
+            # param_store[label+'-dist-param-1'] = param_state[j][3]
+            # param_store[label+'-dist-param-2'] = param_state[j][4]
+            # param_store[label+'-dist-param-3'] = param_state[j][5]
+
+            param_store[label] = {
+                'fixed': not param_state[j][0],
+                'dist': param_state[j][1],
+                'dist-param-0': param_state[j][2],
+                'dist-param-1': param_state[j][3],
+                'dist-param-2': param_state[j][4],
+                'dist-param-3': param_state[j][5],
+            }
+
         return modal_open, param_store
 
     def reset_param(clicked):
-        changed_id = [p["prop_id"] for p in ctx.triggered][0]
-        if changed_id == "params-reset-button.n_clicks":
+        # changed_id = [p["prop_id"] for p in ctx.triggered][0]
+        changed_id = ctx.triggered_id
+        if changed_id == "params-reset-button":
             out = []
-            for param in Params:
+            for param in Params.items():
                 out.append(False)
-            for param in Params:
+            for param in Params.items():
                 out.append("Uniform")
-            for param in Params:
+            for param in Params.items():
                 out.append(param['default'])
-            for param in Params:
+            for param in Params.items():
                 out.append("")
-            for param in Params:
+            for param in Params.items():
                 out.append("")
-            for param in Params:
+            for param in Params.items():
                 out.append("")
             return tuple(out)
         
 
     app.callback(
-        [Output(param['name'].lower().replace(' ','-')+"-choice", "value") for param in Params] +
-        [Output(param['name'].lower().replace(' ','-')+"-dist", "value") for param in Params] +
-        [Output(param['name'].lower().replace(' ','-')+"-dist-param-0", "value") for param in Params] +
-        [Output(param['name'].lower().replace(' ','-')+"-dist-param-1", "value") for param in Params] +
-        [Output(param['name'].lower().replace(' ','-')+"-dist-param-2", "value") for param in Params] +
-        [Output(param['name'].lower().replace(' ','-')+"-dist-param-3", "value") for param in Params],
+        [Output(param+"-choice", "value") for param in Params.keys()] +
+        [Output(param+"-dist", "value") for param in Params.keys()] +
+        [Output(param+"-dist-param-0", "value") for param in Params.keys()] +
+        [Output(param+"-dist-param-1", "value") for param in Params.keys()] +
+        [Output(param+"-dist-param-2", "value") for param in Params.keys()] +
+        [Output(param+"-dist-param-3", "value") for param in Params.keys()],
         [Input("params-reset-button", "n_clicks")],
         prevent_initial_call=True
     )(reset_param)
@@ -1107,8 +1126,9 @@ def make_dashboard():
         clicked, met_source, met_latitude, met_longitude, met_date, met_time
     ):
 
-        changed_id = [p["prop_id"] for p in ctx.triggered][0]
-        if changed_id == "met-submit-button.n_clicks":
+        # changed_id = [p["prop_id"] for p in ctx.triggered][0]
+        changed_id = ctx.triggered_id
+        if changed_id == "met-submit-button":
 
             met_datetime = datetime.fromisoformat(met_date['value']+' '+met_time['value'])
 
@@ -1161,6 +1181,39 @@ def make_dashboard():
         else:
             return  None, None, "OutputBox invisible"
 
+    def get_distributed_params(param_set):
+
+        ret = []
+        for key, value in param_set.items():
+            if not value['fixed']:
+                ret.append(key)
+        return ret
+
+    @app.callback(
+        Output("output-select", "options"),
+        Output("out-quantity", "data"),
+        Input("params", "data"),
+        prevent_initial_call=True,
+    )
+    def set_outputs(param_set):
+
+        Outputs = ([
+                {"label": "Tephra mass eruption rate", "value":"Qs0"},
+                {"label": "Mass eruption rate", "value":"Q0"},
+            ]
+            + [{"label": label, "value": value} for value, label in observables.items()]
+        )
+
+        var_params = get_distributed_params(param_set)
+        if var_params is None:
+            return Outputs, Outputs
+        
+        for label in var_params:
+            name = Params[label]['name']
+            Outputs.append({"label": name, "value": label})
+
+        return Outputs, Outputs
+
     @app.long_callback(
         output=dict(df_out=Output("ensemble", "data"),
                     fig_out=Output("ensemble-image", "children"),
@@ -1175,6 +1228,7 @@ def make_dashboard():
                    params_data=State("params", "data"),
                    ensemble_size=State("ensemble-size", "value"),
                    df_in=State("ensemble", "data"),
+                   out_options=State("out-quantity", "data")
         ),
         running=[
             # (Output("run-ensemble-button", "disabled"), True, False),
@@ -1184,7 +1238,7 @@ def make_dashboard():
         prevent_initial_call=True,
         manager=long_callback_manager,
     )
-    def ensemble_run(clicked, Hvar, Cvar, met_data, params_data, ensemble_size, df_in):
+    def ensemble_run(clicked, Hvar, Cvar, met_data, params_data, ensemble_size, df_in, out_options):
         
 
         if ctx.triggered_id in ["run-ensemble-button", "obs-select", "output-select"]:
@@ -1193,12 +1247,12 @@ def make_dashboard():
 
                 df = solve_ensemble(params_data, ensemble_size, met_data)
 
-            elif ctx.triggered_id in ["obs-select", "output-select"]:
+            else:  #ctx.triggered_id in ["obs-select", "output-select"]:
 
                 df = DataFrame(df_in)
 
 
-            fig = make_ensemble_figure(df, Hvar, color_column=Cvar)
+            fig = make_ensemble_figure(df, Hvar, color_column=Cvar, out_options=out_options, param_set=params_data)
 
             images = html.Div(
                         id="result-plot",
@@ -1214,8 +1268,7 @@ def make_dashboard():
             )
 
 
-    def make_ensemble_figure(df, Hvar, color_column):
-        
+    def make_ensemble_figure(df, Hvar, color_column, out_options, param_set):
         
         df['Htop_label'] = df["Htop"].apply(lambda x: sci_string(x/1e3, precision=2, start_sci=2))
         df['Hn_label'] = df["Hn"].apply(lambda x: 0 if x<0 else sci_string(x/1e3, precision=2, start_sci=2))
@@ -1225,17 +1278,39 @@ def make_dashboard():
         df["Collapse_label"] = df["Collapse"].apply(lambda x: 'Collapsing column' if x==1.0 else 'Buoyant column')
         df[Hvar] = df[Hvar]
 
-        color_title = next(item['label'] for item in Outputs if item['value'] == color_column)
+        color_title = next(item['label'] for item in out_options if item['value'] == color_column)
+        
         match color_column:
-            case ['Qs0', 'Q0']:
+            case 'Qs0' | 'Q0':
                 df['color'] = np.log10(df[color_column])
-                color_title += ' (kg/s)'
-            case ['Htop', 'HtopLg', 'Hn']:
-                df['color'] = df[color_column]/1e3
-                color_title += ' (km)'
+                df['color_label'] = df[color_column].apply(lambda x: sci_string(x, precision=2, start_sci=2))
+                Cmin = nice_round_down(df[color_column].min())
+                Cmax = nice_round_up(df[color_column].max())
+                Cmin = np.minimum(Cmin, Cmax/10)
+                Cmax = np.maximum(Cmax, Cmin*10)
+                Clevels = np.log10(log_steps(Cmin, Cmax, 2))
+                Cmin = np.log10(Cmin)
+                Cmax = np.log10(Cmax)
+                Clabels = [sci_string(10**x, precision=2, start_sci=2) for x in Clevels]
+                color_unit = 'kg/s'
+            case 'Htop' | 'HtopLg' | 'Hn':
+                df['color'] = df[color_column].apply(lambda x: 0 if x<0 else x/1e3)
+                df['color_label'] = df[color_column].apply(lambda x: 0 if x<0 else sci_string(x/1e3, precision=2, start_sci=2))
+                Cmin = nice_round_down(df['color'].min())
+                Cmax = nice_round_up(df['color'].max())
+                Cmin = np.min([0, Cmin, Cmax-1])
+                Cmax = np.maximum(Cmax, Cmin+1)
+                Clevels = np.linspace(Cmin, Cmax, 5)
+                Clabels = [sci_string(x, precision=1, start_sci=2) for x in Clevels]
+                color_unit = 'km'
             case _:
                 df['color'] = df[color_column]
-
+                df['color_label'] = df[color_column].apply(lambda x: sci_string(x, precision=2, start_sci=3))
+                color_unit = Params[color_column]['unit']
+                Cmin = param_set[color_column]['dist-param-0']
+                Cmax = param_set[color_column]['dist-param-1']
+                Clevels = np.linspace(Cmin, Cmax, 5)
+                Clabels = [sci_string(x, precision=0, start_sci=3) for x in Clevels]
 
         fig = go.Figure(
             data=go.Scattergl(
@@ -1253,16 +1328,28 @@ def make_dashboard():
                                      df['Qs_label'],
                                      df['Htop_label'],
                                      df['Hn_label'],
-                                     df['Collapse_label']), axis=-1
+                                     df['Collapse_label'],
+                                     df['color_label']), axis=-1
                 ),
-                hovertemplate="Total mass eruption rate = %{customdata[0]} kg/s<br>"
-                    + "Tephra mass eruption rate = %{customdata[1]} kg/s<br>"
-                    + "Plume top height = %{customdata[2]} km a.s.l.<br>"
-                    + "Neutral buoyancy height = %{customdata[3]} km a.s.l.<br>"
-                    + "%{customdata[4]}<br>"
-                    + "<extra></extra>",
+                # hovertemplate="Total mass eruption rate = %{customdata[0]} kg/s<br>"
+                #     + "Tephra mass eruption rate = %{customdata[1]} kg/s<br>"
+                #     + "Plume top height = %{customdata[2]} km a.s.l.<br>"
+                #     + "Neutral buoyancy height = %{customdata[3]} km a.s.l.<br>"
+                #     + f"{color_title} = %{customdata[5]} {color_unit} <br>"
+                #     + "%{customdata[4]}<br>"
+                #     + "<extra></extra>",
             )
         )
+
+        hvtmp = "Total mass eruption rate = %{customdata[0]} kg/s<br>"
+        hvtmp += "Tephra mass eruption rate = %{customdata[1]} kg/s<br>"
+        hvtmp += "Plume top height = %{customdata[2]} km a.s.l.<br>"
+        hvtmp += "Neutral buoyancy height = %{customdata[3]} km a.s.l.<br>"
+        if color_column in Params.keys():
+            hvtmp += color_title + " = %{customdata[5]} " + color_unit +"<br>"
+        hvtmp += "%{customdata[4]}<br>"
+        hvtmp += "<extra></extra>"
+        fig.update_traces(hovertemplate=hvtmp)
 
         Qmin = nice_round_down(df['Qs0'].min())
         Qmax = nice_round_up(df['Qs0'].max())
@@ -1281,16 +1368,15 @@ def make_dashboard():
                 font_family="Source Sans",
             ),
         )
-
-        fig.update_coloraxes(
-            dict(
-                colorbar=dict(
-                    title=dict(
-                        text = color_title,
-                        side = 'right',
-                    )
-                )
-            )
+        
+        fig.update_traces(selector=dict(type='scattergl'),
+            marker_colorbar_title_text = f"{color_title} ({color_unit})",
+            marker_colorbar_title_side = 'right',
+            marker_cmin = Cmin,
+            marker_cmax = Cmax,
+            marker_colorbar_tickmode = 'array',
+            marker_colorbar_tickvals = Clevels,
+            marker_colorbar_ticktext = Clabels,
         )
 
         fig.update_xaxes(
@@ -1317,49 +1403,72 @@ def make_dashboard():
 
     @app.callback(
         output=dict(fig_out=Output("obs-image", "children")),
-        inputs=dict(clicked=Input("obs-button", "n_clicks")),
+        inputs=dict(
+            clicked=Input("obs-button", "n_clicks"),
+            Hvar=Input("obs-select", "value"),
+            out_var=Input("output-select", "value"),
+        ),
         state=dict(
                    df_in=State("ensemble", "data"),
                    params_data=State("params", "data"),
-                   obs=State("obs-select", "value"),
                    obs_min=State("obs-min-store","data"),
                    obs_max=State("obs-max-store","data"),
+                   out_options=State("out-quantity", "data")
         ),
         prevent_initial_call=True,
     )
-    def infer_from_ensemble(clicked, df_in, params_data, obs, obs_min, obs_max):
-        changed_id = [p["prop_id"] for p in ctx.triggered][0]
-        if changed_id == "obs-button.n_clicks":
+    def infer_from_ensemble(clicked, Hvar, out_var, df_in, params_data, obs_min, obs_max, out_options):
+        changed_id = ctx.triggered_id
+
+        if (changed_id == "obs-button") or (changed_id in ["obs-select", "output-select"] and clicked>0):
 
             hmin = float(obs_min['value'])
             hmax = float(obs_max['value'])
 
             df = DataFrame(df_in)
             
-            df = df.loc[(df[obs]>= hmin*1000) & (df[obs]<=hmax*1000)]
+            df = df.loc[(df[Hvar]>= hmin*1000) & (df[Hvar]<=hmax*1000)]
 
-            df['log_Qs0'] = np.log10(df["Qs0"])
+            xlabel = next(item['label'] for item in out_options if item['value'] == out_var)
+
+            log_scale = False
+
+            match out_var:
+                case 'Qs0' | 'Q0':
+                    df['out'] = np.log10(df[out_var])
+                    xlabel += ' (kg/s)'
+                    log_scale = True
+                case 'Htop' | 'HtopLg' | 'Hn':
+                    df['out'] = df[out_var].apply(lambda x: 0 if x<0 else x/1e3)
+                    xlabel += ' (km)'
+                case _:
+                    df['out'] = df[out_var]
+                    out_unit = Params[out_var]['unit']
+                    xlabel += f' ({out_unit})'
 
             # Qmin = nice_round_down(df['log_Qs0'].min())
             # Qmax = nice_round_up(df['log_Qs0'].min())
 
-            hist, bin_edges = np.histogram(df['log_Qs0'], density=False)
+            hist, bin_edges = np.histogram(df['out'], density=False)
             if df.shape[0]>0:
                 hist = hist/df.shape[0]
             bin_mid = 0.5*(bin_edges[1:]+bin_edges[:-1])
             bin_width = bin_edges[1:]-bin_edges[:-1]
-            Qbins = np.power(10, bin_edges)
-            Qbin_mid = 0.5*(Qbins[1:]+Qbins[:-1])
-            Qbin_width = Qbins[1:]-Qbins[:-1]
-            Qbins = [sci_string(b, precision=2, start_sci=2) for b in Qbins]
+            if out_var in ['Qs0', 'Q0']:
+                bins = np.power(10, bin_edges)
+            else:
+                bins = bin_edges
+            bin_mid = 0.5*(bins[1:]+bins[:-1])
+            bin_width = bins[1:]-bins[:-1]
+            bins = [sci_string(b, precision=2, start_sci=3) for b in bins]
 
             fig = go.Figure()
 
             fig.add_trace(
                 go.Bar(
-                    x = Qbin_mid,
+                    x = bin_mid,
                     y = hist,
-                    width = Qbin_width,
+                    width = bin_width,
                     marker =dict(color='#1d91c0',),
                     opacity=0.75,
                 )
@@ -1398,8 +1507,8 @@ def make_dashboard():
                 zerolinecolor="DarkGrey",
                 # dtick=1,
                 exponentformat="power",
-                type="log",
-                title="Tephra mass eruption rate (kg/s)",
+                type="log" if log_scale else "linear",
+                title=xlabel,
                 minor=dict(ticklen=4, tickcolor="LightGrey"),
             )
             fig.update_yaxes(
@@ -1417,6 +1526,8 @@ def make_dashboard():
             )
 
             return dict(fig_out=images)
+        else:
+            return dict(fig_out=None)
 
 
     app.run_server(host="127.0.0.1", debug=True)

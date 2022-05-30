@@ -36,6 +36,9 @@ def sci_string(f: np.float_, precision: Optional[int] = 1, start_sci: int = 1) -
     if np.isnan(f):
         return "No data"
 
+    if np.isclose(f, 0.0):
+        return "{mantissa:.{precision}f}".format(mantissa=0.0, precision=precision)
+
     f_e = int(np.floor(np.log10(f)))
     f_m = f / (10**f_e)
 
@@ -168,12 +171,12 @@ def step_direction(vmin: np.float_, vmax: np.float_, step: np.float_) -> int:
 
 
 def lin_steps(
-    vmin: np.float_,
-    vmax: np.float_,
-    step: np.float_ = 1.0,
+    vmin: float,
+    vmax: float,
+    step: float = 1.0,
     include_endpoints: bool = True,
     direction: Optional[int] = None,
-) -> List[np.float_]:
+) -> List[float]:
 
     if direction is None:
         direction = step_direction(vmin, vmax, step)

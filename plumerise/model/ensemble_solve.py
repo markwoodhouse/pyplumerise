@@ -50,18 +50,17 @@ def make_ensemble(sample_settings, ensemble_size, design="LHC"):
     fixed = []
     dists = []
 
-    for p in Params:
-        label = p['label']
-        if sample_settings[label+'-fixed']:
-            fixed.append({'name':label, 'value':float(sample_settings[label+'-dist-param-0'])})
+    for label in Params.keys():
+        if sample_settings[label]['fixed']:
+            fixed.append({'name':label, 'value':float(sample_settings[label]['dist-param-0'])})
         else:
             dists.append(DistributedVariable(
                 name=label,
-                dist=sample_settings[label+'-dist'],
-                param0=sample_settings[label+'-dist-param-0'],
-                param1=sample_settings[label+'-dist-param-1'],
-                param2=sample_settings[label+'-dist-param-2'],
-                param3=sample_settings[label+'-dist-param-3']
+                dist=sample_settings[label]['dist'],
+                param0=sample_settings[label]['dist-param-0'],
+                param1=sample_settings[label]['dist-param-1'],
+                param2=sample_settings[label]['dist-param-2'],
+                param3=sample_settings[label]['dist-param-3']
                 )
             )
 
@@ -73,7 +72,7 @@ def make_ensemble(sample_settings, ensemble_size, design="LHC"):
         for j, d in enumerate(dists):
             dists[j].sample_from_ppf(lhd[:,j])
             
-    df = pd.DataFrame(columns=[p['label'] for p in Params])
+    df = pd.DataFrame(columns=list(Params.keys()))
     for d in dists:
         df[d.name] = d.samples.tolist()
     
