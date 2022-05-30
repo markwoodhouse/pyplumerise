@@ -686,6 +686,61 @@ def make_dashboard():
         ]
     )
 
+    export_tab = html.Div(
+        className="pane",
+        children=[
+            html.Div(
+                id="export-choice",
+                className="flex-input-column",
+                # className="formfield",
+                style={"padding-bottom": "5px"},
+                children=[
+                    html.Label(
+                        "Export:",
+                        className="Dropdown-label",
+                    ),
+                    dcc.Dropdown(
+                        id="export-select",
+                        options=(
+                            [
+                                {"label": "Full ensemble", "value":"full"},
+                                {"label": "Matching runs", "value":"match"},
+                            ]
+                        ),
+                        value="full",
+                        clearable=False,
+                        placeholder="Select data",
+                        optionHeight=35,
+                    ),
+                ],
+            ),
+            html.Div(
+                className="formfield",
+                style={"width": "240px"},
+                children=[
+                    html.Button(
+                        className="button",
+                        id="data-download-button",
+                        disabled="disabled",
+                        style={"width": "150px"},
+                        n_clicks=0,
+                        children=[
+                            html.I(
+                                className="fas fa-download",
+                                style={"margin-right": "10px"},
+                            ),
+                            html.Span(
+                                "Download Ensemble",
+                                style={"font-size": "10pt"},
+                            ),
+                        ],
+                    ),
+                    dcc.Download(id="ensemble-download"),
+                ],
+            ),
+        ],
+    )
+
     app.layout = html.Div(
         className="body",
         children=[
@@ -762,6 +817,13 @@ def make_dashboard():
                                     selected_className="outertab--selected",
                                     children=parameters_tab,
                                 ),
+                                dcc.Tab(
+                                    label="Data export",
+                                    value="exportTab",
+                                    className="outertab right",
+                                    selected_className="outertab--selected",
+                                    children=export_tab,
+                                )
                             ],
                         )
                     ),
@@ -1219,6 +1281,7 @@ def make_dashboard():
         output=dict(df_out=Output("ensemble", "data"),
                     fig_out=Output("ensemble-image", "children"),
                     obs_ensemble_class=Output("obs-ensemble", "className"),
+                    data_download_disabled=Output("data-download-button", "disabled"),
                     # color_choice_class=Output("output-choice", "className")
         ),
         inputs=dict(clicked=Input("run-ensemble-button", "n_clicks"),
@@ -1248,6 +1311,8 @@ def make_dashboard():
 
                 df = solve_ensemble(params_data, ensemble_size, met_data)
 
+                data_download_disabled = False
+
             else:  #ctx.triggered_id in ["obs-select", "output-select"]:
 
                 df = DataFrame(df_in)
@@ -1265,11 +1330,14 @@ def make_dashboard():
             return dict(
                 df_out=df.to_dict('records'),
                 fig_out=images,
-                obs_ensemble_class=obs_ensemble_class
+                obs_ensemble_class=obs_ensemble_class,
+                data_download_disabled=data_download_disabled,
             )
 
 
-    def make_ensemble_figure(df, Hvar, color_column, out_options, param_set):
+    def make_ensemble_figure(df_in, Hvar, color_column, out_options, param_set):
+
+        df = df_in.copy()
         
         df['Htop_label'] = df["Htop"].apply(lambda x: sci_string(x/1e3, precision=2, start_sci=2))
         df['Hn_label'] = df["Hn"].apply(lambda x: 0 if x<0 else sci_string(x/1e3, precision=2, start_sci=2))
@@ -1529,6 +1597,67 @@ def make_dashboard():
             return dict(fig_out=images)
         else:
             return dict(fig_out=None)
+
+    @app.callback(
+        Output("export-select", "options"),
+        Input("obs-button", "n_clicks"),
+        prevent_inital_call=True,
+    )
+    def data_export_options(obs_clicked):
+        if obs_clicked>0:
+            return [
+                        {"label": "Full ensemble", "value":"full"},
+                        {"label": "Matching runs", "value":"match"},
+                    ]
+        else:
+            return [
+                        {"label": "Full ensemble", "value":"full"},
+                        {"label": "Matching runs", "value":"match", "disabled": True},
+                    ]
+
+    @app.callback(
+        Output("ensemble-download", "data"),
+        Input("data-download-button", "n_clicks"),
+        State("export-select", "value"),
+        State("ensemble", "data"),
+        State("obs-select", "value"),
+        State("obs-min-store","data"),
+        State("obs-max-store","data"),
+        prevent_initial_call=True,
+    )
+    def download_data(clicked, dataset, df_in, Hvar, obs_min, obs_max):
+        changed_id = ctx.triggered_id
+        if changed_id == "data-download-button":
+
+            df = DataFrame(df_in)
+
+            print(df)
+
+            if dataset=="match":
+                hmin = float(obs_min['value'])
+                hmax = float(obs_max['value'])
+                df = df.loc[(df[Hvar]>= hmin*1000) & (df[Hvar]<=hmax*1000)]
+
+            df["Collapse"] = df["Collapse"].apply(lambda x: 'Collapse' if x==1.0 else 'Buoyant')
+
+            df.rename(
+                columns={
+                    "Q0": "Mass eruption rate",
+                    "Qs0": "Tephra mass eruption rate",
+                    "Hn": "Neutral buoyancy height",
+                    "Htop": "Plume top centreline height",
+                    "HtopL": "Plume top top-hat edge height",
+                    "HtopLg": "Plume top Gaussian edge height",
+                    "HCondense": "Plume Condensation height",
+                    "Collapse": "Buoyant/Collapse",
+                },
+                inplace=True,
+            )
+
+            if dataset=="full":
+                return dcc.send_data_frame(df.to_csv, "plumerise_full_ensemble.csv")
+            elif dataset=="match":
+                return dcc.send_data_frame(df.to_csv, "plumerise_matching_ensemble.csv")
 
 
     app.run_server(host="127.0.0.1", debug=True)

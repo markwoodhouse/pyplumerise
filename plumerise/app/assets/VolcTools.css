@@ -1223,6 +1223,10 @@ input[type="radio"] {
 
 }
 
+.outertab.right {
+	float: right;
+}
+
 .outertab--selected {
 	background-color: #efebe7;
 	background-image: -ms-linear-gradient(top, #fcfbfa 0%, #EFEBE7 100%);
