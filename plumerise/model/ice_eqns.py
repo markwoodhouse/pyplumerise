@@ -524,7 +524,7 @@ def CheckStep(
     U = M / Q
     Uz = U * np.sin(theta)
 
-    if Uz - SolParams["Umin"][0] <= 2.0 * np.finfo(np.float64).eps:
+    if np.abs(Uz - SolParams["Umin"][0]) <= 2.0 * np.finfo(np.float64).eps:
         Flag = 2
         return z_pos, GasThrust, Condense, Flag
 

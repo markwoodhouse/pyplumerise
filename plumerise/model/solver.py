@@ -184,26 +184,26 @@ def integrate(
             GotCondHeight = 1
 
         if solverFlag == 0:
-            soln = clip_soln(soln, soln_pos)
+            soln = clip_soln(soln, soln_pos+1)
             msg = "Something went wrong"
             break
 
         if StepFlag < 0:
-            soln = clip_soln(soln, soln_pos)
+            soln = clip_soln(soln, soln_pos+1)
             msg = "Something went wrong"
             break
         elif StepFlag == 1:  # passed end point for integration
             soln, z_pos, soln_pos = update_soln(
                 soln, s, y, Params, Met, SolParams, z_pos, soln_pos
             )
-            soln = clip_soln(soln, soln_pos)
+            soln = clip_soln(soln, soln_pos+1)
             msg = "Integrated past end point"
             break
         elif StepFlag == 2:  # stop condition has been satisfied
             soln, z_pos, soln_pos = update_soln(
                 soln, s, y, Params, Met, SolParams, z_pos, soln_pos
             )
-            soln = clip_soln(soln, soln_pos)
+            soln = clip_soln(soln, soln_pos+1)
             msg = "Stop condition satisfied"
             break
         elif StepFlag == 0:

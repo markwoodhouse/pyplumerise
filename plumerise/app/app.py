@@ -1303,7 +1303,8 @@ def make_dashboard():
         manager=long_callback_manager,
     )
     def ensemble_run(clicked, Hvar, Cvar, met_data, params_data, ensemble_size, df_in, out_options):
-        
+
+        data_download_disabled = True        
 
         if ctx.triggered_id in ["run-ensemble-button", "obs-select", "output-select"]:
 

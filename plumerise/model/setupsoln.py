@@ -14,7 +14,7 @@ from .MetDataSet import Met_interp, SpecHumidity, esfunc, eswfunc
 @njit(cache=True)
 def init_soln(N):
 
-    soln = np.zeros((N, 31), dtype=np.float64)
+    soln = np.nan*np.ones((N, 31), dtype=np.float64)
     # s -> 0
     # Q -> 1
     # M -> 2
@@ -129,69 +129,71 @@ def get_soln(soln: np.ndarray, var: str):
 
     match var:
         case 's':
-            return soln[:,0]
+            sol = soln[:,0]
         case 'Q':
-            return soln[:,1]
+            sol = soln[:,1]
         case 'M':
-            return soln[:,2]
+            sol = soln[:,2]
         case 'phia':
-            return soln[:,3]
+            sol = soln[:,3]
         case 'phiv':
-            return soln[:,4]
+            sol = soln[:,4]
         case 'phis':
-            return soln[:,5]
+            sol = soln[:,5]
         case 'phiw':
-            return soln[:,6]
+            sol = soln[:,6]
         case 'phii':
-            return soln[:,7]
+            sol = soln[:,7]
         case 'Cp':
-            return soln[:,8]
+            sol = soln[:,8]
         case 'rho':
-            return soln[:,9]
+            sol = soln[:,9]
         case 'T':
-            return soln[:,10]
+            sol = soln[:,10]
         case 'theta':
-            return soln[:,11]
+            sol = soln[:,11]
         case 'psi':
-            return soln[:,12]
+            sol = soln[:,12]
         case 'x':
-            return soln[:,13]
+            sol = soln[:,13]
         case 'y':
-            return soln[:,14]
+            sol = soln[:,14]
         case 'z':
-            return soln[:,15]
+            sol = soln[:,15]
         case 'Pa':
-            return soln[:,16]
+            sol = soln[:,16]
         case 'Ta':
-            return soln[:,17]
+            sol = soln[:,17]
         case 'RH':
-            return soln[:,18]
+            sol = soln[:,18]
         case 'phivA':
-            return soln[:,19]
+            sol = soln[:,19]
         case 'rhoAtm':
-            return soln[:,20]
+            sol = soln[:,20]
         case 'V':
-            return soln[:,21]
+            sol = soln[:,21]
         case 'psia':
-            return soln[:,22]
+            sol = soln[:,22]
         case 'L':
-            return soln[:,23]
+            sol = soln[:,23]
         case 'Lgaussian':
-            return soln[:,24]
+            sol = soln[:,24]
         case 'U':
-            return soln[:,25]
+            sol = soln[:,25]
         case 'Ugaussian':
-            return soln[:,26]
+            sol = soln[:,26]
         case 'Uz':
-            return soln[:,27]
+            sol = soln[:,27]
         case 'Uzgaussian':
-            return soln[:,28]
+            sol = soln[:,28]
         case 'E':
-            return soln[:,29]
+            sol = soln[:,29]
         case 'n':
-            return soln[:,30]
+            sol = soln[:,30]
         case _:
             raise ValueError("Requested variable not in soln array")
+    
+    return sol[~np.isnan(sol)]
         
 
 @njit(cache=True)
@@ -204,10 +206,11 @@ def NeutralHeight(soln):
     rhoAtm = get_soln(soln, 'rhoAtm')
 
     for j in range(len(z) - 1):
-        if (np.abs(rho[j] - rhoAtm[j]) < 2.0 * np.finfo(np.float64).eps) and (
+        if (np.abs(rho[j] - rhoAtm[j]) < 10.0 * np.finfo(np.float64).eps) and (
             (rho[j + 1] - rhoAtm[j + 1]) > 0.0
         ):
             Hneutral = z[j]
+            break
         elif ((rho[j] - rhoAtm[j]) < 0.0) and (
             (rho[j + 1] - rhoAtm[j + 1]) > 0.0
         ):
@@ -216,6 +219,7 @@ def NeutralHeight(soln):
             ) / (
                 (rho[j + 1] - rhoAtm[j + 1]) - (rho[j] - rhoAtm[j])
             )
+            break
 
     return Hneutral
 
