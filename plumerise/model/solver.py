@@ -173,23 +173,24 @@ def integrate(
             y, dy, h, IC, Params, SolParams, Met, z_pos, GasThrust
         )
 
+        z_pos, GasThrust, Condense, StepFlag = CheckStep(
+            s + h_done, yt, Params, Met, SolParams, z_pos, GasThrust
+        )
+
         s = s + h_done
         y = yt
 
-        z_pos, GasThrust, Condense, StepFlag = CheckStep(
-            s, y, Params, Met, SolParams, z_pos, GasThrust
-        )
         if (GotCondHeight == 0) and (Condense == 1):
             plume_state["HCondense"] = y[14, 0]
             GotCondHeight = 1
 
         if solverFlag == 0:
-            soln = clip_soln(soln, soln_pos)
+            soln = clip_soln(soln, soln_pos+1)
             msg = "Something went wrong"
             break
 
         if StepFlag < 0:
-            soln = clip_soln(soln, soln_pos)
+            soln = clip_soln(soln, soln_pos+1)
             msg = "Something went wrong"
             break
         elif StepFlag == 1:  # passed end point for integration
@@ -384,3 +385,13 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray):
 
     Flag = 1
     return IC, y_start, GasThrust, Condense, Flag
+
+def solve(Params,SolParams,IC,Met):
+
+    IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Params, Met)
+
+    plume_state, soln, solverFlag, msg = integrate(IC, Params, SolParams, Met, GasThrust, Condense, y_start)
+
+    print(msg)
+
+    return soln

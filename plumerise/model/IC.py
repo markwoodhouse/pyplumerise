@@ -8,7 +8,7 @@ def set_IC(
     U0: float = 100.0,  # exit velocity [m/s]
     n0: float = 0.05,  # gas mass fraction [1]
     T0: float = 1200.0,  # temperature at the vent [K]
-    z0: float = 0.0,  # vent altitude [m]'Q0': np.float64(0.0)
+    z0: float = 0.0,  # vent altitude [m]
     Q0: float = 0.0,
     M0: float = 0.0,
     E0: float = 0.0,

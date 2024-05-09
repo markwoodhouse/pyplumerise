@@ -1,5 +1,10 @@
 from datetime import datetime
 from functools import cache
+from math import ceil, floor
+import os
+import re
+
+from typing import Optional
 
 import metpy as metpy
 import metpy.calc as mpcalc
@@ -9,6 +14,8 @@ from numba import jit, njit
 # from numba.experimental import jitclass
 from numba.types import float64, int64, string
 from siphon.simplewebservice.wyoming import WyomingUpperAir
+import cdsapi
+from netCDF4 import Dataset
 
 
 @njit(cache=True)
@@ -421,7 +428,7 @@ def Met_interp(Met: np.ndarray, z_in: float64, z_pos: int64):
 #         return vals, z_pos
 
 
-@njit
+@njit(cache=True)
 def esfunc(T: float64, Ti0: float64, Ti00: float64):
     """
         Saturation vapour pressure over water, ice or mixture
@@ -446,7 +453,7 @@ def esfunc(T: float64, Ti0: float64, Ti00: float64):
     return es,desdT
 
 
-@njit
+@njit(cache=True)
 def eswfunc(T: float64):
     """Saturation vapour pressure over water
     [Alduchov & Eskridge 1996]"""
@@ -465,7 +472,7 @@ def eswfunc(T: float64):
     return esw, deswdT
 
 
-@njit
+@njit(cache=True)
 def esifunc(T: float64):
     
     """Saturation vapour pressure over ice
@@ -486,7 +493,7 @@ def esifunc(T: float64):
 
 
 
-@njit    
+@njit(cache=True)
 def SpecHumidity(RH, esa, Pa, Ra, Rv):
     wa = RH*esa*Ra/(Rv*Pa - RH*esa*(Rv-Ra))
     return wa
@@ -494,52 +501,111 @@ def SpecHumidity(RH, esa, Pa, Ra, Rv):
 
 
 
-class MetData(object):
+class MetData:
+    date: str
+    time: str
+    type: str
+    stationID: Optional[str]
+    source: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
 
-    def __init__(self, Date, Time,
-                StationID = '',
-                MetType='', MetSource=''
+    def __init__(self, date: str, time: str, type: str,
+                stationID: Optional[str]=None,
+                source: Optional[str]=None,
+                latitude: Optional[float]=None,
+                longitude: Optional[float]=None
                 ):
+        
+        if type is None:
+            raise ValueError("MetData 'type' must be given")
 
-        match MetType.lower():
+        if date is None:
+            raise ValueError("MetData 'date' must be given")
+        if not re.match('^[0-9]{4}-[0-9]{2}-[0-9]{2}$', date):
+            raise ValueError("MetData 'date' must be in the format 'YYYY-MM-DD'")
+        
+        if time is None:
+            raise ValueError("MetData 'time' must be given")
+        if not re.match('^[0-9]{2}:[0-9]{2}$', time):
+            raise ValueError("MetData 'time' must be in the format 'HH:MM'")
+
+        self.type = type.lower()
+
+        match self.type:
             case 'radiosonde':
-                self.MetType = 'Radiosonde'
-                self.MetSource = MetSource
-                if MetSource=='Wyoming':
-                    self.Date = Date
-                    self.Time = Time
-                    self.StationID = StationID
-                    self.Data = self.get_wyoming()
-            case 'nwp':
-                self.MetType = 'NWP'
+                if source is None:
+                    raise ValueError("MetData 'source' must be given for type 'radiosonde'")
+                self.source = source.lower()
+                if self.source=='wyoming':
+                    if stationID is None:
+                        raise ValueError("MetData 'stationID' must be given for source 'wyoming'")
+                    self.date = date
+                    self.time = time
+                    self.stationID = stationID
+                    self.data = self.get_wyoming()
+            case 'era5':
+                self.source = 'cds'
+                self.date = date
+                self.time = time
+                if latitude is None:
+                    raise ValueError("MetData 'latitude' must be given for type 'era5'")
+                try:
+                    self.latitude = np.float64(latitude)
+                except:
+                    raise ValueError("MetData 'latitude' must be given in decimal degrees")
+                if np.abs(self.latitude)>90:
+                    raise ValueError("MetData 'latitude' must be in the range -90..90 degrees")
+                
+                if longitude is None:
+                    raise ValueError("MetData 'longitude' must be given for type 'era5'")
+                try:
+                    self.longitude = np.float64(longitude)
+                except:
+                    raise ValueError("MetData 'longitude' must be given in decimal degrees")
+                if self.longitude>360 or self.longitude<-180:
+                    raise ValueError("MetData 'longitude' must be in the range 0..360 degrees, or -180...180 degrees")
+
+                self.data = self.get_era5()
             case _:
                 raise ValueError("In MetData initialization 'MetType' not recognized. \n "
-                                 + " 'MetType' must be one of 'Radiosonde', 'NWP'")
+                                 + " 'MetType' must be one of 'Radiosonde', 'ERA5'")
+            
+    def to_array(self):
+        met_array = np.zeros((self.data.size, 6), dtype=np.float64)
+        met_array[:,0] = self.data['height']
+        met_array[:,1] = self.data['temperature']
+        met_array[:,2] = self.data['pressure']
+        met_array[:,3] = self.data['direction']
+        met_array[:,4] = self.data['speed']
+        met_array[:,5] = self.data['relhum']
+
+        return met_array
             
     def get_wyoming(self):
         """get_wyoming: get radiosonde data from Wyoming Weather Web at specified date, time and station.
 
-        Inputs:
+        Required:
             date [string]: date in ISO format YYYY-MM-DD
             time [string]: time in HH:MM format
             station [string]: station label
 
         Returns:
-            df: DataFrame with radiosonde data
+            metdata: structured array with radiosonde data
 
         """
 
-        date = datetime.fromisoformat(self.Date+' '+self.Time)
+        date = datetime.fromisoformat(self.date+' '+self.time)
 
-        df = WyomingUpperAir.request_data(date, self.StationID)
+        df = WyomingUpperAir.request_data(date, self.stationID)
         df.dropna(axis=0, inplace=True)
 
-        temperature = df['temperature'].values * mpunits.units(df.units['temperature'])
-        pressure = df['pressure'].values * mpunits.units(df.units['pressure'])
-        height = df['height'].values * mpunits.units(df.units['height'])
-        dewpoint = df['dewpoint'].values * mpunits.units(df.units['dewpoint'])
-        direction = df['direction'].values * mpunits.units(df.units['direction'])
-        speed = df['speed'].values * mpunits.units(df.units['speed'])
+        temperature = mpunits.units.Quantity(df['temperature'].values, df.units['temperature'])
+        pressure = mpunits.units.Quantity(df['pressure'].values, df.units['pressure'])
+        height = mpunits.units.Quantity(df['height'].values, df.units['height'])
+        dewpoint = mpunits.units.Quantity(df['dewpoint'].values, df.units['dewpoint'])
+        direction = mpunits.units.Quantity(df['direction'].values, df.units['direction'])
+        speed = mpunits.units.Quantity(df['speed'].values, df.units['speed'])
 
         relhum = mpcalc.relative_humidity_from_dewpoint(temperature, dewpoint)
 
@@ -560,12 +626,217 @@ class MetData(object):
         ])
 
         metdata = np.empty(len(height), dtype=met_types)
-        metdata['temperature'] = temperature
-        metdata['pressure'] = pressure
-        metdata['height'] = height
-        metdata['direction'] = direction
-        metdata['speed'] = speed
-        metdata['relhum'] = relhum
+        metdata['temperature'] = temperature.data
+        metdata['pressure'] = pressure.data
+        metdata['height'] = height.data
+        metdata['direction'] = direction.data
+        metdata['speed'] = speed.data
+        metdata['relhum'] = relhum.data
+
+        return metdata
+    
+    def get_era5(self):
+        """get_era5: get reanalysis data from ECMWF ERA5 at specified date, time and location (latitude, longitude).
+
+        Requires:
+            date [string]: date in ISO format YYYY-MM-DD
+            time [string]: time in HH:MM format
+            latitude [float]: latitude in decimal degrees (WGS84)
+            longitude [float]: latitude in decimal degrees (WGS84)
+
+        Returns:
+            metdata: structured array with era5 data
+
+        """
+
+        date = datetime.fromisoformat(self.date+' '+self.time)
+
+        era5data = era5('era5_data.nc', self.latitude, self.longitude)
+        era5data.download(datetime=date)
+        era5data.extract()
+
+        met_types = np.dtype([
+            ('temperature', np.float64),
+            ('pressure', np.float64),
+            ('height', np.float64),
+            ('direction', np.float64),
+            ('speed', np.float64),
+            ('relhum', np.float64),
+        ])
+
+        metdata = np.empty(era5data.altitude.size, dtype=met_types)
+        metdata['temperature'] = era5data.temperature
+        metdata['pressure'] = era5data.pressure
+        metdata['height'] = era5data.altitude
+        metdata['direction'] = era5data.direction
+        metdata['speed'] = era5data.speed
+        metdata['relhum'] = era5data.relative_humidity
 
         return metdata
 
+
+class era5:
+    def __init__(self, file, lat, lon):
+        self.file = file
+        self.lat = lat
+        self.lon = lon
+
+        self.altitude = np.empty((0), dtype=np.float64)
+        self.wind_U = np.empty((0), dtype=np.float64)
+        self.wind_V = np.empty((0), dtype=np.float64)
+        self.direction = np.empty((0), dtype=np.float64)
+        self.speed = np.empty((0), dtype=np.float64)
+        self.temperature = np.empty((0), dtype=np.float64)
+        self.pressure = np.empty((0), dtype=np.float64)
+        self.geopotential = np.empty((0), dtype=np.float64)
+        self.relative_humidity = np.empty((0), dtype=np.float64)
+
+    def extract(self):
+        nc = Dataset(self.file, "r")
+        P = mpunits.units.Quantity(nc.variables["level"][:].data, nc.variables["level"].units)
+
+        lats = nc.variables["latitude"][:].data
+        lons = nc.variables["longitude"][:].data
+
+        if np.amax(lons) > 180.0:
+            lons[lons > 180.0] = 180.0 - lons[lons > 180.0]
+
+        lat_i0, _, lon_i0, _ = _near_lat_lon(self.lat, self.lon, lats, lons)
+
+        geopotential = mpunits.units.Quantity(nc.variables["z"][0, :, lat_i0, lon_i0].data, nc.variables["z"].units)
+
+        altitude = mpcalc.geopotential_to_height(geopotential)
+
+        Uij = mpunits.units.Quantity(_interp_latlon(self.lat, self.lon, nc.variables["u"], lats, lons), nc.variables["u"].units)
+        Vij = mpunits.units.Quantity(_interp_latlon(self.lat, self.lon, nc.variables["v"], lats, lons), nc.variables["v"].units)
+        Tij = mpunits.units.Quantity(_interp_latlon(self.lat, self.lon, nc.variables["t"], lats, lons), nc.variables["t"].units)
+        RelHum = mpunits.units.Quantity(_interp_latlon(self.lat, self.lon, nc.variables['r'], lats, lons), nc.variables["r"].units)
+
+        Dirc = mpcalc.wind_direction(Uij, Vij)
+        Speed = mpcalc.wind_speed(Uij,Vij)
+
+        Tij = Tij.to(mpunits.units.K)
+        P = P.to(mpunits.units.Pa)
+        altitude = altitude.to(mpunits.units.m)
+        Dirc = Dirc.to(mpunits.units.radian)
+        Speed = Speed.to(mpunits.units.mps)
+        RelHum = RelHum.to(mpunits.units.dimensionless)
+
+        self.altitude = np.float64(np.asarray(np.flipud(altitude.data)))
+        self.geopotential = np.flipud(np.float64(geopotential.data))
+        self.wind_U = np.float64(np.asarray(np.flipud(Uij.data)))
+        self.wind_V = np.float64(np.asarray(np.flipud(Vij.data)))
+        self.direction = np.float64(np.asarray(np.flipud(Dirc.data)))
+        self.speed = np.float64(np.asarray(np.flipud(Speed.data)))
+        self.temperature = np.float64(np.asarray(np.flipud(Tij.data)))
+        self.pressure = np.float64(np.asarray(np.flipud(P.data)))
+        self.relative_humidity = np.float64(np.asarray(np.flipud(RelHum.data)))
+
+    def download(self, *, datetime):
+        if os.path.isfile(self.file):
+            print(f"Met file {self.file} exists and will be overwritten".format())
+
+        cds = cdsapi.Client()
+        cds.retrieve(
+            "reanalysis-era5-pressure-levels",
+            {
+                "product_type": "reanalysis",
+                "format": "netcdf",
+                "variable": [
+                    "geopotential",
+                    "temperature",
+                    "u_component_of_wind",
+                    "v_component_of_wind",
+                    "relative humidity"
+                ],
+                "pressure_level": [
+                    "1",
+                    "2",
+                    "3",
+                    "5",
+                    "7",
+                    "10",
+                    "20",
+                    "30",
+                    "50",
+                    "70",
+                    "100",
+                    "125",
+                    "150",
+                    "175",
+                    "200",
+                    "225",
+                    "250",
+                    "300",
+                    "350",
+                    "400",
+                    "450",
+                    "500",
+                    "550",
+                    "600",
+                    "650",
+                    "700",
+                    "750",
+                    "775",
+                    "800",
+                    "825",
+                    "850",
+                    "875",
+                    "900",
+                    "925",
+                    "950",
+                    "975",
+                    "1000",
+                ],
+                "year": str(datetime.year),
+                "month": "{:02d}".format(datetime.month),
+                "day": "{:02d}".format(datetime.day),
+                "time": "{:02d}:00".format(datetime.hour),
+                "area": [
+                    ceil(self.lat + 0.25),
+                    floor(self.lon - 0.25),
+                    floor(self.lat - 0.25),
+                    ceil(self.lon + 0.25),
+                ],
+            },
+            self.file,
+        )
+
+def _near_lat_lon(target_lat, target_lon, lats, lons):
+
+    lat_i_near = np.abs(lats - target_lat).argmin()
+    lon_i_near = np.abs(lons - target_lon).argmin()
+
+    if target_lat in lats:
+        lat_i0 = lat_i_near
+        lat_i1 = lat_i_near  # won't need this
+    else:
+        lat_i0 = lat_i_near if lat_i_near < target_lat else lat_i_near + 1
+        lat_i1 = lat_i0 - 1
+    if target_lon in lons:
+        lon_i0 = lon_i_near
+        lon_i1 = lon_i_near  # won't need this
+    else:
+        lon_i0 = lon_i_near if lon_i_near < target_lon else lon_i_near - 1
+        lon_i1 = lon_i0 + 1
+
+    return lat_i0, lat_i1, lon_i0, lon_i1
+
+
+def _interp_latlon(target_lat, target_lon, data, lats, lons):
+
+    lat_i0, lat_i1, lon_i0, lon_i1 = _near_lat_lon(target_lat, target_lon, lats, lons)
+
+    d_lat = target_lat - lats[lat_i0]
+    d_lon = target_lon - lons[lon_i0]
+
+    data_00 = data[0, :, lat_i0, lon_i0]
+    data_01 = data[0, :, lat_i1, lon_i0]
+    data_10 = data[0, :, lat_i0, lon_i1]
+    data_11 = data[0, :, lat_i1, lon_i1]
+
+    data_i0 = data_00 + d_lon * (data_10 - data_00)
+    data_i1 = data_01 + d_lon * (data_11 - data_01)
+    data_ij = data_i0 + d_lat * (data_i1 - data_i0)
+
+    return data_ij

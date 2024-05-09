@@ -43,9 +43,24 @@ class DistributedVariable():
         self.samples = self.dist.ppf(ppf_vals)
     
 
+def make_settings(vent_elevation=0, vent_radius=50, gas_mass_fraction=0.03, source_temperature=1000,
+                  source_velocity=100, pyroclast_density=1200,
+                  no_wind_entrainment_coef=0.09, wind_entrainment_coef=0.9):
+
+    sample_settings = {}
+    sample_settings['vent-elevation'] = vent_elevation
+    sample_settings['vent-radius'] = vent_radius
+    sample_settings['gas-mass-fraction'] = gas_mass_fraction
+    sample_settings['source-temperature'] = source_temperature
+    sample_settings['source-velocity'] = source_velocity
+    sample_settings['pyroclast-density'] = pyroclast_density
+    sample_settings['no-wind-entrainment-coef'] = no_wind_entrainment_coef
+    sample_settings['wind-entrainment-coef'] = wind_entrainment_coef
+
+    return sample_settings
 
 
-def make_ensemble(sample_settings, ensemble_size, design="LHC"):
+def make_ensemble_app(sample_settings, ensemble_size, design="LHC"):
 
     fixed = []
     dists = []
@@ -82,6 +97,42 @@ def make_ensemble(sample_settings, ensemble_size, design="LHC"):
     return df
 
 
+def make_ensemble(sample_settings, ensemble_size, design="LHC"):
+
+    fixed = []
+    dists = []
+
+    for label in Params.keys():
+        if isinstance(sample_settings[label],(int,float)):
+            fixed.append({'name':label, 'value':float(sample_settings[label])})
+        else:
+            dists.append({'name':label, 'dist':sample_settings[label]})
+
+    N_dists = len(dists)
+
+    if design=='LHC':
+        samples = lhs(N_dists, samples=ensemble_size)
+
+        for j, d in enumerate(dists):
+            samples[:,j] = d['dist'].ppf(samples[:,j])
+
+    elif design=='MC':
+        samples = np.empty((ensemble_size,N_dists))
+
+        for j, d in enumerate(dists):
+            samples[:,j] = d['dist'].rvs(ensemble_size)
+
+            
+    df = pd.DataFrame(columns=list(Params.keys()))
+    for j, d in enumerate(dists):
+        df[d['name']] = samples[:,j]
+    
+    for f in fixed:
+        df.loc[:, f['name']] = f['value']
+
+    return df
+
+
 def solve_plume(vent_elevation,
                 vent_radius,
                 gas_mass_fraction,
@@ -106,14 +157,7 @@ def solve_plume(vent_elevation,
 
     SolParams = set_solver_params()
 
-    Met = MetDataArray(
-        met_data[:,2],
-        met_data[:,0],
-        met_data[:,1],
-        met_data[:,3],
-        met_data[:,4],
-        met_data[:,5]
-    )
+    Met = met_data.to_array()
 
     IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Parameters, Met)
 

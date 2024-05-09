@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from faulthandler import disable
 from math import floor
 from turtle import color
@@ -17,7 +17,6 @@ from dash.dependencies import Input, Output, State
 from dash.long_callback import DiskcacheLongCallbackManager
 from flask_caching import Cache
 from geopy import distance
-from importlib_metadata import distributions
 from numpy import abs, log10
 from pandas import Categorical, DataFrame
 from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
@@ -1192,7 +1191,7 @@ def make_dashboard():
         changed_id = ctx.triggered_id
         if changed_id == "met-submit-button":
 
-            met_datetime = datetime.fromisoformat(met_date['value']+' '+met_time['value'])
+            met_datetime = datetime.replace(datetime.fromisoformat(met_date['value']+' '+met_time['value']), tzinfo=timezone.utc)
 
             met_data = None
             msg = ""
@@ -1200,7 +1199,7 @@ def make_dashboard():
 
                 case 'Wyoming':
 
-                    if met_datetime > datetime.utcnow():
+                    if met_datetime > datetime.now(timezone.utc):
                         msg = 'Cannot get forecasts from Wyoming Weather Web.'
                     else:
 

@@ -39,9 +39,6 @@ def fice(
 
     """
 
-    n0 = IC.n0
-    Q0 = IC.Q0
-
     g = Params["g"][0]
     Ca = Params["Ca"][0]
     Cv = Params["Cv"][0]
@@ -89,9 +86,8 @@ def fice(
     dPadz = MetVals["dPadz"]
 
     Ta = MetVals["Ta"]
-    dTadz = MetVals["dTadz"]
 
-    esa, desadT = eswfunc(Ta)  # saturation vapor pressure in atmosphere
+    esa, _ = eswfunc(Ta)  # saturation vapor pressure in atmosphere
     RH = MetVals["RH"]  # relative humidity in the atmosphere
 
     phivA = SpecHumidity(RH, esa, Pa, Ra, Rv)
@@ -458,8 +454,6 @@ def CheckStep(
     # Flag = -2 is E<0.
     # Flag = -3 something else went wrong
 
-    Ca = Params["Ca"][0]
-    Cv = Params["Cv"][0]
     Ra = Params["Ra"][0]
     Rv = Params["Rv"][0]
 
@@ -524,7 +518,7 @@ def CheckStep(
     U = M / Q
     Uz = U * np.sin(theta)
 
-    if Uz - SolParams["Umin"][0] <= 2.0 * np.finfo(np.float64).eps:
+    if Uz < SolParams["Umin"][0]:
         Flag = 2
         return z_pos, GasThrust, Condense, Flag
 

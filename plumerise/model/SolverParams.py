@@ -7,17 +7,17 @@ from numba.types import float64, int64, string
 def set_solver_params(
     sMax: float = 100.0e3,  # Default end point of integration, so eventually integration will stop
     # StopCond: str = "Top",  # Stop when plume vertical velocity first reaches zero (i.e. at first maxima).
-    Umin: float = 1.0e-4,  # Default minimum rise speed.  If StopCond='Top' and U falls below Umin during integration, the integration stops
+    Umin: float = 1.0e-3,  # Default minimum rise speed.  If StopCond='Top' and U falls below Umin during integration, the integration stops
     MaxHorizDistance: float = 100e3,  # Default horizontal distance from source.  If StopCond='HorizDistance' and sqrt(x^2+y^2)>MaxHorizDistance the integration stops
-    rtol: float = 1.0e-8,  # Default relative error tolerance
-    MinStep: float = 1.0e-10,  # Default minimum rk step size
-    MaxStep: float = 1.0e1,  # Default minimum rk step size
+    rtol: float = 1.0e-6,  # Default relative error tolerance
+    MinStep: float = 1.0e-8,  # Default minimum rk step size
+    MaxStep: float = 1,  # Default minimum rk step size
     InitStep: float = 1.0e-3,  # Default initial rk step size
-    OutStep: float = 1.0,
-    MaxSolnPnts: int = 1000000,  # Maximum number of solution points allowed by the solver.
-    invsolMaxIts: int = 50,  # Default maximum number of iterations for inverse solver
-    invsolrtol: float = 1.0e-3,  # Default relative error tolerance for inverse solver
-    invsolatol: float = 1.0e-1,  # Default absolute error tolerance for inverse solver
+    OutStep: float = 100.0,
+    MaxSolnPnts: int = 100000,  # Maximum number of solution points allowed by the solver.
+    invsolMaxIts: int = 100,  # Default maximum number of iterations for inverse solver
+    invsolrtol: float = 1.0e-4,  # Default relative error tolerance for inverse solver
+    invsolatol: float = 1.0e-2,  # Default absolute error tolerance for inverse solver
     invsolxtol: float = 1.0e-14,  # Default tolerance for interval in inverse solver
 ):
 

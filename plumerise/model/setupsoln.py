@@ -14,7 +14,7 @@ from .MetDataSet import Met_interp, SpecHumidity, esfunc, eswfunc
 @njit(cache=True)
 def init_soln(N):
 
-    soln = np.zeros((N, 31), dtype=np.float64)
+    soln = np.nan*np.ones((N, 31), dtype=np.float64)
     # s -> 0
     # Q -> 1
     # M -> 2
@@ -182,13 +182,13 @@ def get_soln(soln: np.ndarray, var: str):
             return soln[:,25]
         case 'Ugaussian':
             return soln[:,26]
-        case 'Uz':
-            return soln[:,27]
-        case 'Uzgaussian':
-            return soln[:,28]
         case 'E':
-            return soln[:,29]
+            return soln[:,27]
         case 'n':
+            return soln[:,28]
+        case 'Uz':
+            return soln[:,29]
+        case 'Uzgaussian':
             return soln[:,30]
         case _:
             raise ValueError("Requested variable not in soln array")
@@ -204,10 +204,11 @@ def NeutralHeight(soln):
     rhoAtm = get_soln(soln, 'rhoAtm')
 
     for j in range(len(z) - 1):
-        if (np.abs(rho[j] - rhoAtm[j]) < 2.0 * np.finfo(np.float64).eps) and (
+        if (np.abs(rho[j] - rhoAtm[j]) < 10.0 * np.finfo(np.float64).eps) and (
             (rho[j + 1] - rhoAtm[j + 1]) > 0.0
         ):
             Hneutral = z[j]
+            break
         elif ((rho[j] - rhoAtm[j]) < 0.0) and (
             (rho[j + 1] - rhoAtm[j + 1]) > 0.0
         ):
@@ -216,6 +217,7 @@ def NeutralHeight(soln):
             ) / (
                 (rho[j + 1] - rhoAtm[j + 1]) - (rho[j] - rhoAtm[j])
             )
+            break
 
     return Hneutral
 
