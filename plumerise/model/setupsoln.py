@@ -14,10 +14,10 @@ from .MetDataSet import Met_interp, SpecHumidity, esfunc, eswfunc
 @njit(cache=True)
 def init_soln(N):
 
-    soln = np.nan*np.ones((N, 31), dtype=np.float64)
+    soln = np.nan*np.ones((N, 32), dtype=np.float64)
     # s -> 0
-    # Q -> 1
-    # M -> 2
+    # logQ -> 1
+    # logM -> 2
     # phia -> 3
     # phiv -> 4
     # phis -> 5
@@ -27,10 +27,10 @@ def init_soln(N):
     # rho -> 9
     # T -> 10
     # theta -> 11
-    # psi -> 12
-    # x -> 13
-    # y -> 14
-    # z -> 15
+    # z -> 12
+    # psi -> 13
+    # x -> 14
+    # y -> 15
     # Pa -> 16
     # Ta -> 17
     # RH -> 18
@@ -41,11 +41,13 @@ def init_soln(N):
     # L -> 23
     # Lgaussian -> 24
     # U -> 25
-    # Ugaussian -> 26
-    # Uz -> 27
-    # Uzgaussian -> 28
-    # E -> 29
-    # n -> 30
+    # 26 -> Ugaussian
+    # 27 -> Q
+    # 28 -> M
+    # 29 -> E
+    # 30 -> n = phia + phiv
+    # 31 -> Uz
+    # 32 -> Uzgaussian
 
     return soln
 
@@ -53,13 +55,13 @@ def init_soln(N):
 @njit(cache=True)
 def update_soln(
     soln: np.ndarray,
-    s: float64,
+    s: np.float64,
     y: np.ndarray,
     Params: np.ndarray,
     Met: np.ndarray,
     SolParams: np.ndarray,
-    z_pos: int64,
-    j: int64,
+    z_pos: np.int64,
+    j: np.int64,
 ):
 
     if j < SolParams["MaxSolnPnts"]:
@@ -68,8 +70,8 @@ def update_soln(
         Rv = Params["Rv"][0]
 
         soln[j, 0] = s  # s
-        soln[j, 1] = np.pi * y[0, 0]  # Q
-        soln[j, 2] = np.pi * y[1, 0]  # M
+        soln[j, 1] = y[0, 0]  # logQ
+        soln[j, 2] = y[1, 0]  # logM
         soln[j, 3] = y[2, 0]  # phia
         soln[j, 4] = y[3, 0]  # phiv
         soln[j, 5] = y[4, 0]  # phis
@@ -79,11 +81,16 @@ def update_soln(
         soln[j, 9] = y[8, 0]  # rho
         soln[j, 10] = y[9, 0]  # T
         soln[j, 11] = y[10, 0]  # theta
-        soln[j, 12] = y[11, 0]  # psi
-        soln[j, 13] = y[12, 0]  # x
-        soln[j, 14] = y[13, 0]  # y
-        soln[j, 15] = y[14, 0]  # z
-        z = y[14, 0]
+        soln[j, 12] = y[11, 0]  # z
+        if SolParams["threeD"][0]:
+            soln[j, 13] = y[12, 0]  # psi
+            soln[j, 14] = y[13, 0]  # x
+            soln[j, 15] = y[14, 0]  # y
+        else:
+            soln[j, 13] = np.float64(0.0)
+            soln[j, 14] = np.float64(0.0)
+            soln[j, 15] = np.float64(0.0)
+        z = y[11, 0]
         MetVals, z_pos = Met_interp(Met, z, z_pos)
         Ta = MetVals["Ta"]
         esa, _ = eswfunc(Ta)  # saturation vapor pressure in atmosphere
@@ -103,17 +110,21 @@ def update_soln(
         soln[j, 20] = rhoAtm  # rhoAtm
         soln[j, 21] = V  # V
         soln[j, 22] = psia  # psia
-        L = y[0, 0] / np.sqrt(y[8, 0] * y[1, 0])  # L = Q/sqrt(rho*M)
-        U = y[1, 0] / y[0, 0]  # U = M/Q
+        Q = np.exp(y[0, 0])
+        M = np.exp(y[1, 0])
+        L = Q / np.sqrt(y[8, 0] * M)  # L = Q/sqrt(rho*M)
+        U = M / Q  # U = M/Q
         E = y[7, 0] * y[9, 0] * y[0, 0]  # E = Cp*T*Q
         soln[j, 23] = L  # L
         soln[j, 24] = L / np.sqrt(2.0)  # Lgaussian
         soln[j, 25] = U  # U
         soln[j, 26] = 2.0 * U  # Ugaussian
-        soln[j, 27] = np.pi * E  # E
-        soln[j, 28] = soln[j, 3] + soln[j, 4]  # n = phia + phiv
-        soln[j, 29] = U * np.sin(y[10, 0])  # Uz
-        soln[j, 30] = 2.0 * U * np.sin(y[10, 0])  # Uzgaussian
+        soln[j, 27] = np.pi * Q
+        soln[j, 28] = np.pi * M
+        soln[j, 29] = np.pi * E  # E
+        soln[j, 30] = soln[j, 3] + soln[j, 4]  # n = phia + phiv
+        soln[j, 31] = U * np.sin(y[10, 0])  # Uz
+        soln[j, 32] = 2.0 * U * np.sin(y[10, 0])  # Uzgaussian
         j += 1
     return soln, z_pos, j
 
@@ -130,9 +141,9 @@ def get_soln(soln: np.ndarray, var: str):
     match var:
         case 's':
             return soln[:,0]
-        case 'Q':
+        case 'logQ':
             return soln[:,1]
-        case 'M':
+        case 'logM':
             return soln[:,2]
         case 'phia':
             return soln[:,3]
@@ -152,13 +163,13 @@ def get_soln(soln: np.ndarray, var: str):
             return soln[:,10]
         case 'theta':
             return soln[:,11]
-        case 'psi':
-            return soln[:,12]
-        case 'x':
-            return soln[:,13]
-        case 'y':
-            return soln[:,14]
         case 'z':
+            return soln[:,12]
+        case 'psi':
+            return soln[:,13]
+        case 'x':
+            return soln[:,14]
+        case 'y':
             return soln[:,15]
         case 'Pa':
             return soln[:,16]
@@ -182,14 +193,18 @@ def get_soln(soln: np.ndarray, var: str):
             return soln[:,25]
         case 'Ugaussian':
             return soln[:,26]
-        case 'E':
+        case 'Q':
             return soln[:,27]
-        case 'n':
+        case 'M':
             return soln[:,28]
-        case 'Uz':
+        case 'E':
             return soln[:,29]
-        case 'Uzgaussian':
+        case 'n':
             return soln[:,30]
+        case 'Uz':
+            return soln[:,31]
+        case 'Uzgaussian':
+            return soln[:,32]
         case _:
             raise ValueError("Requested variable not in soln array")
         
@@ -225,44 +240,44 @@ def NeutralHeight(soln):
 # solnArraySpec = [
 #     # solnArray stores the solution data.
 #     # Each variable has values as function of height
-#     ("s", float64[:]),
-#     ("Q", float64[:]),
-#     ("M", float64[:]),
-#     ("phia", float64[:]),
-#     ("phiv", float64[:]),
-#     ("phis", float64[:]),
-#     ("phiw", float64[:]),
-#     ("phii", float64[:]),
-#     ("Cp", float64[:]),
-#     ("rho", float64[:]),
-#     ("T", float64[:]),
-#     ("theta", float64[:]),
-#     ("psi", float64[:]),
-#     ("x", float64[:]),  # E-W coordinate,
-#     ("y", float64[:]),  # N-S coordinate,
-#     ("z", float64[:]),
-#     ("Pa", float64[:]),
-#     ("Ta", float64[:]),
-#     ("RH", float64[:]),
-#     ("phivA", float64[:]),
-#     ("rhoAtm", float64[:]),
-#     ("V", float64[:]),
-#     ("psia", float64[:]),
-#     ("L", float64[:]),
-#     ("Lgaussian", float64[:]),
-#     ("U", float64[:]),
-#     ("Ugaussian", float64[:]),
-#     ("Uz", float64[:]),
-#     ("Uzgaussian", float64[:]),
-#     ("E", float64[:]),
-#     ("n", float64[:]),
-#     ("Q0", float64),
-#     ("Hn", float64),
-#     ("Htop", float64),
-#     ("HtopL", float64),
-#     ("HtopLg", float64),
-#     ("HCondense", float64),
-#     ("Collapse", int64),
+#     ("s", np.float64[:]),
+#     ("Q", np.float64[:]),
+#     ("M", np.float64[:]),
+#     ("phia", np.float64[:]),
+#     ("phiv", np.float64[:]),
+#     ("phis", np.float64[:]),
+#     ("phiw", np.float64[:]),
+#     ("phii", np.float64[:]),
+#     ("Cp", np.float64[:]),
+#     ("rho", np.float64[:]),
+#     ("T", np.float64[:]),
+#     ("theta", np.float64[:]),
+#     ("psi", np.float64[:]),
+#     ("x", np.float64[:]),  # E-W coordinate,
+#     ("y", np.float64[:]),  # N-S coordinate,
+#     ("z", np.float64[:]),
+#     ("Pa", np.float64[:]),
+#     ("Ta", np.float64[:]),
+#     ("RH", np.float64[:]),
+#     ("phivA", np.float64[:]),
+#     ("rhoAtm", np.float64[:]),
+#     ("V", np.float64[:]),
+#     ("psia", np.float64[:]),
+#     ("L", np.float64[:]),
+#     ("Lgaussian", np.float64[:]),
+#     ("U", np.float64[:]),
+#     ("Ugaussian", np.float64[:]),
+#     ("Uz", np.float64[:]),
+#     ("Uzgaussian", np.float64[:]),
+#     ("E", np.float64[:]),
+#     ("n", np.float64[:]),
+#     ("Q0", np.float64),
+#     ("Hn", np.float64),
+#     ("Htop", np.float64),
+#     ("HtopL", np.float64),
+#     ("HtopLg", np.float64),
+#     ("HCondense", np.float64),
+#     ("Collapse", np.int64),
 # ]
 
 
@@ -299,13 +314,13 @@ def NeutralHeight(soln):
 #     Uzgaussian: np.ndarray
 #     E: np.ndarray
 #     n: np.ndarray
-#     Q0: float64
-#     Hn: float64
-#     Htop: float64
-#     HtopL: float64
-#     HtopLg: float64
-#     HCondense: float64
-#     Collapse: int64
+#     Q0: np.float64
+#     Hn: np.float64
+#     Htop: np.float64
+#     HtopL: np.float64
+#     HtopLg: np.float64
+#     HCondense: np.float64
+#     Collapse: np.int64
 
 #     def __init__(self, N):
 #         self.s = np.zeros((N), dtype=np.float64)
@@ -344,13 +359,13 @@ def NeutralHeight(soln):
 
 #     def update(
 #         self,
-#         s: float64,
+#         s: np.float64,
 #         y: np.ndarray,
 #         Params: ParamsSet,
 #         Met: MetDataArrays,
 #         SolParams: SolverSet,
-#         z_pos: int64,
-#         j: int64,
+#         z_pos: np.int64,
+#         j: np.int64,
 #     ):
 
 #         if j < SolParams.MaxSolnPnts:
