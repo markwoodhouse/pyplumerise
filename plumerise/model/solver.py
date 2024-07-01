@@ -1,15 +1,19 @@
+from typing import Callable
+
 import numpy as np
 from numba import njit
 from numba.types import float64, int64, string
+
 from plumerise.model.setupsoln import init_soln
 
 # from .IC import ICSet
-from .ice_eqns import CheckStep, fice
+from .ice_eqns import CheckStep_ice, fice
 from .MetDataSet import Met_interp, SpecHumidity, esfunc, eswfunc
-
 # from .ParamSet import ParamsSet
 from .rk import rkstep
-from .setupsoln import NeutralHeight, clip_soln, get_soln, init_soln, update_soln
+from .setupsoln import (NeutralHeight, clip_soln, get_soln, init_soln,
+                        update_soln)
+from .wet_eqns import CheckStep_wet, fwet
 
 # from .SolverParams import SolverSet
 
@@ -25,15 +29,27 @@ def NextStep(
     z_pos: np.int64,
     GasThrust: np.int64,
 ):
+    
+    logQ = y[1,0]
+    logM = y[2,0]
+    U = np.exp(logM-logQ) # y[0,0] = logQ, y[1,0] = logM, M/Q = exp(logM - logQ)
+    dU = U * (dy[1,0]-dy[0,0]) # dU/ds = U * (d(logM)/ds - d(logQ)/ds)
 
-    U = np.exp(y[1,0]-y[0,0]) # y[0,0] = logQ, y[1,0] = logM, M/Q = exp(logM - logQ)
-    theta = y[10, 0]
+    if SolParams["eqn"][0]==2:
+        theta = y[10, 0]
+        dtheta = dy[10, 0]
+    elif SolParams["eqn"][0]==1:
+        theta = y[9, 0]
+        dtheta = dy[9, 0]
+    else:
+        print('ERROR')
+        print(SolParams["eqn"])
+        theta = y[10, 0] # CHANGE THIS
+        dtheta = dy[10, 0] # AND THIS
+
     cos_theta = np.cos(theta)
     sin_theta = np.sin(theta)
-
-    dU = U * (dy[1,0]-dy[0,0]) # dU/ds = U * (d(logM)/ds - d(logQ)/ds)
-    dtheta = dy[10,0]
-
+    
     h = h_next    
 
     Uz = U * sin_theta
@@ -53,6 +69,7 @@ def NextStep(
 
 @njit(cache=True)
 def integrate(
+    eqn: Callable,
     IC: np.ndarray,
     Params: np.ndarray,
     SolParams: np.ndarray,
@@ -60,9 +77,10 @@ def integrate(
     GT: np.int64,
     Cond: np.int64,
     y_start: np.ndarray,
+    CheckStep: Callable,
 ):
 
-    z_pos = 0
+    z_pos = np.int64(0)
     s0 = np.float64(0.0)
     sold = s0
 
@@ -76,7 +94,7 @@ def integrate(
 
     plume_state["Q0"] = np.pi * y_start[0][0]
     plume_state["Qs0"] = (1.0 - IC["n0"][0]) * plume_state["Q0"]
-    soln_pos = 0
+    soln_pos = np.int64(0)
     soln, z_pos, soln_pos = update_soln(
         soln, s0, y_start, Params, Met, SolParams, z_pos, soln_pos
     )
@@ -95,7 +113,7 @@ def integrate(
         plume_state["HCondense"] = np.float64(0.0)
     
     try:
-        dy, z_pos, eqn_flag = fice(y, Params, Met, z_pos, GasThrust, threeD)
+        dy, z_pos, eqn_flag = eqn(y, Params, Met, z_pos, GasThrust, threeD)
     except:
         msg = "Nans/Infs in equations at initial step"
         solverFlag = 0
@@ -105,13 +123,12 @@ def integrate(
     if h<SolParams["MinStep"][0]: h = SolParams["MinStep"][0]
 
     while True:
-        
         solverFlag = 0
 
         while h > SolParams['MinStep'][0]:
             
             z_pos, yt, h_done, h_next, solverFlag = rkstep(
-                y, dy, h, Params, SolParams, Met, z_pos, GasThrust)
+                y, dy, eqn, h, Params, SolParams, Met, z_pos, GasThrust)
             
             if solverFlag<0:
                 h = 0.9*h
@@ -123,7 +140,7 @@ def integrate(
             )
 
             try:
-                dy_next, z_pos_next, eqn_flag = fice(yt, Params, Met, z_pos, GasThrust, threeD)
+                dy_next, z_pos_next, eqn_flag = eqn(yt, Params, Met, z_pos, GasThrust, threeD)
             except:
                 h = 0.9*h
                 print('Failed rhs calculation: reducing step size')
@@ -200,11 +217,13 @@ def integrate(
     return plume_state, soln, solverFlag, msg
 
 
-def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, threeD: bool):
+def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams: np.ndarray):
 
     # Calculate some starting values
 
-    z_pos = 1
+    threeD = SolParams["threeD"]
+
+    z_pos = np.int64(0)
 
     MetVals, z_pos = Met_interp(Met, IC["z0"][0], z_pos)
 
@@ -254,16 +273,22 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, threeD: bo
     )  # bulk density of the plume
 
     Pv0 = IC["phiv0"][0] * Rv / (IC["phia0"][0] * Ra + IC["phiv0"][0] * Rv) * IC["Pa0"]
-    es0, _ = esfunc(IC["T0"][0], Ti0, Ti00)
+    
+    match SolParams["eqn"][0]:
+        case 2:
+            es0, _ = esfunc(IC["T0"][0], Ti0, Ti00)
+        case _:
+            es0, _ = eswfunc(IC["T0"][0])
 
     if Pv0 > es0:
-        Condense = 1
+        Condense = np.int64(1)
     else:
-        Condense = 0
+        Condense = np.int64(0)
 
     # Do some checks on initial conditions
     if IC["rho0"][0] <= 0:
         raise ValueError("Inputs produce unphysical rho0 < 0.")
+
 
     IC["Cp0"][0] = (
         IC["phia0"][0] * Ca
@@ -316,42 +341,85 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, threeD: bo
     IC["E0"][0] = IC["Q0"][0] * IC["Cp0"][0] * IC["T0"][0]
 
     if IC["rho0"][0] > rhoAtm0:
-        GasThrust = 1  # density of plume at source is bigger than atmospheric
+        GasThrust = np.int64(1)  # density of plume at source is bigger than atmospheric
     else:
-        GasThrust = 0
+        GasThrust = np.int64(0)
 
     # Set initial conditions
-    if threeD:
-        Nsize = 15
-    else:
-        Nsize = 12
-    y_start = np.zeros((Nsize, 1), dtype=np.float64)
-    y_start[0, 0] = np.log(IC["Q0"][0])
-    y_start[1, 0] = np.log(IC["M0"][0])
-    y_start[2, 0] = IC["phia0"][0]
-    y_start[3, 0] = IC["phiv0"][0]
-    y_start[4, 0] = IC["phis0"][0]
-    y_start[5, 0] = IC["phiw0"][0]
-    y_start[6, 0] = IC["phii0"][0]
-    y_start[7, 0] = IC["Cp0"][0]
-    y_start[8, 0] = IC["rho0"][0]
-    y_start[9, 0] = IC["T0"][0]
-    y_start[10, 0] = np.float64(0.5) * np.pi
-    y_start[11, 0] = IC["z0"][0]
-    if threeD:
-        y_start[12, 0] = psi0
-        y_start[13, 0] = np.float64(0.0)
-        y_start[14, 0] = np.float64(0.0)
+
+    match SolParams["eqn"][0]:
+        case 2:
+            Nsize = 15 if threeD else 12
+            
+            y_start = np.zeros((Nsize, 1), dtype=np.float64)
+            y_start[0, 0] = np.log(IC["Q0"][0])
+            y_start[1, 0] = np.log(IC["M0"][0])
+            y_start[2, 0] = IC["phia0"][0]
+            y_start[3, 0] = IC["phiv0"][0]
+            y_start[4, 0] = IC["phis0"][0]
+            y_start[5, 0] = IC["phiw0"][0]
+            y_start[6, 0] = IC["phii0"][0]
+            y_start[7, 0] = IC["Cp0"][0]
+            y_start[8, 0] = IC["rho0"][0]
+            y_start[9, 0] = IC["T0"][0]
+            y_start[10, 0] = np.float64(0.5) * np.pi
+            y_start[11, 0] = IC["z0"][0]
+            if threeD:
+                y_start[12, 0] = psi0
+                y_start[13, 0] = np.float64(0.0)
+                y_start[14, 0] = np.float64(0.0)
+
+        case 1:
+            Nsize = 14 if threeD else 11
+            
+            y_start = np.zeros((Nsize, 1), dtype=np.float64)
+            y_start[0, 0] = np.log(IC["Q0"][0])
+            y_start[1, 0] = np.log(IC["M0"][0])
+            y_start[2, 0] = IC["phia0"][0]
+            y_start[3, 0] = IC["phiv0"][0]
+            y_start[4, 0] = IC["phis0"][0]
+            y_start[5, 0] = IC["phiw0"][0]
+            y_start[6, 0] = IC["Cp0"][0]
+            y_start[7, 0] = IC["rho0"][0]
+            y_start[8, 0] = IC["T0"][0]
+            y_start[9, 0] = np.float64(0.5) * np.pi
+            y_start[10, 0] = IC["z0"][0]
+            if threeD:
+                y_start[11, 0] = psi0
+                y_start[12, 0] = np.float64(0.0)
+                y_start[13, 0] = np.float64(0.0)
     
 
     Flag = 1
     return IC, y_start, GasThrust, Condense, Flag
 
+def select_eqn(SolParams):
+    match SolParams["eqn"][0]:
+        case 2:
+            @njit(cache=True)
+            def eqn(yt, Params, Met, z_pos, GasThrust, threeD):
+                return fice(yt, Params, Met, z_pos, GasThrust, threeD)
+            @njit(cache=True)
+            def CheckStep(s,y,Params,Met,SolParams,z_pos,GasThrust):
+                return CheckStep_ice(s,y,Params,Met,SolParams,z_pos,GasThrust)
+        case 1:
+            @njit(cache=True)
+            def eqn(yt, Params, Met, z_pos, GasThrust, threeD):
+                return fwet(yt, Params, Met, z_pos, GasThrust, threeD)
+            @njit(cache=True)
+            def CheckStep(s,y,Params,Met,SolParams,z_pos,GasThrust):
+                return CheckStep_wet(s,y,Params,Met,SolParams,z_pos,GasThrust)
+    
+    return eqn, CheckStep
+
+
 def solve(Params,SolParams,IC,Met):
 
-    IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Params, Met, SolParams["threeD"][0])
+    eqn, CheckStep = select_eqn(SolParams)
+    
+    IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Params, Met, SolParams)
 
-    plume_state, soln, solverFlag, msg = integrate(IC, Params, SolParams, Met, GasThrust, Condense, y_start)
+    plume_state, soln, solverFlag, msg = integrate(eqn, IC, Params, SolParams, Met, GasThrust, Condense, y_start, CheckStep)
 
     print(msg)
 

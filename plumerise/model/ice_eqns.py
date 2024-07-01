@@ -474,7 +474,7 @@ def fice(
 
 
 @njit(cache=True)
-def CheckStep(
+def CheckStep_ice(
     s: np.float64,
     y: np.ndarray,
     Params: np.ndarray,

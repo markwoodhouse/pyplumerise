@@ -1,5 +1,4 @@
 import numpy as np
-
 # from numba.experimental import jitclass
 from numba.types import float64, int64, string
 
@@ -21,6 +20,7 @@ def set_solver_params(
     invsolatol: float = 1.0e-2,  # Default absolute error tolerance for inverse solver
     invsolxtol: float = 1.0e-14,  # Default tolerance for interval in inverse solver
     threeD: bool = True, # Plume in 3d?
+    eqn: str = "ice", # "ice": Include ice phase change; "wet": Include liquid water phase change; "dry": no water phase change
 ):
 
     sp_dtype = np.dtype(
@@ -39,7 +39,8 @@ def set_solver_params(
             ("invsolrtol", np.float64),
             ("invsolatol", np.float64),
             ("invsolxtol", np.float64),
-            ("threeD", bool)
+            ("threeD", bool),
+            ("eqn", np.int64),
         ]
     )
 
@@ -60,6 +61,13 @@ def set_solver_params(
     sp["invsolatol"][0] = np.float64(invsolatol)
     sp["invsolxtol"][0] = np.float64(invsolxtol)
     sp["threeD"][0] = threeD
+    match eqn:
+        case "ice":
+            sp["eqn"][0] = 2
+        case "wet":
+            sp["eqn"][0] = 1
+        case "dry":
+            sp["eqn"][0] = 0
     return sp
 
 

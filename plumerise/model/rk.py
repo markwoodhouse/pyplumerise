@@ -1,11 +1,11 @@
 from functools import cache
+from typing import Callable
 
 import numpy as np
 from numba import njit
 from numba.types import float64, int64, string
 
 # from .IC import ICSet
-from .ice_eqns import fice
 from .MetDataSet import Met_interp
 
 # from .ParamSet import ParamsSet
@@ -17,6 +17,7 @@ def rkCK(
     y_in: np.ndarray,
     dy: np.ndarray,
     h: np.float64,
+    eqn: Callable,
     Params: np.ndarray,
     Met: np.ndarray,
     z_pos: np.int64,
@@ -64,7 +65,7 @@ def rkCK(
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     try:
-        ak2, z_pos, eqn_flag = fice(yt, Params, Met, z_pos, GasThrust, threeD)  # Second step.
+        ak2, z_pos, eqn_flag = eqn(yt, Params, Met, z_pos, GasThrust, threeD)  # Second step.
     except:
         eqn_flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), eqn_flag
@@ -76,7 +77,7 @@ def rkCK(
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     try:
-        ak3, z_pos, eqn_flag = fice(yt, Params, Met, z_pos, GasThrust, threeD)  # Third step.
+        ak3, z_pos, eqn_flag = eqn(yt, Params, Met, z_pos, GasThrust, threeD)  # Third step.
     except:
         eqn_flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), eqn_flag
@@ -88,7 +89,7 @@ def rkCK(
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     try:
-        ak4, z_pos, eqn_flag = fice(yt, Params, Met, z_pos, GasThrust, threeD)  # Fourth step.
+        ak4, z_pos, eqn_flag = eqn(yt, Params, Met, z_pos, GasThrust, threeD)  # Fourth step.
     except:
         eqn_flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), eqn_flag
@@ -100,7 +101,7 @@ def rkCK(
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     try:
-        ak5, z_pos, eqn_flag = fice(yt, Params, Met, z_pos, GasThrust, threeD)  # Fifth step.
+        ak5, z_pos, eqn_flag = eqn(yt, Params, Met, z_pos, GasThrust, threeD)  # Fifth step.
     except:
         eqn_flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), eqn_flag
@@ -112,7 +113,7 @@ def rkCK(
         return np.zeros_like(y_in), np.zeros_like(y_in), Flag
 
     try:
-        ak6, z_pos, eqn_flag = fice(yt, Params, Met, z_pos, GasThrust, threeD)  # Sixth step.
+        ak6, z_pos, eqn_flag = eqn(yt, Params, Met, z_pos, GasThrust, threeD)  # Sixth step.
     except:
         eqn_flag = -1
         return np.zeros_like(y_in), np.zeros_like(y_in), eqn_flag
@@ -131,6 +132,7 @@ def rkCK(
 def rkstep(
     y: np.ndarray,
     dy: np.ndarray,
+    eqn: Callable,
     h_in: np.float64,
     Params: np.ndarray,
     SolParams: np.ndarray,
@@ -144,7 +146,7 @@ def rkstep(
     solverFlag = 1
     h = np.float64(h_in)
     while True:
-        yt, y_err, SolverFlag = rkCK(y, dy, h, Params, Met, z_pos, GasThrust, threeD)
+        yt, y_err, SolverFlag = rkCK(y, dy, h, eqn, Params, Met, z_pos, GasThrust, threeD)
         if SolverFlag < 0:
             return z_pos, np.zeros_like(y), h, h, solverFlag
 

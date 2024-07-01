@@ -56,13 +56,72 @@ def init_soln(N):
 def update_soln(
     soln: np.ndarray,
     s: np.float64,
-    y: np.ndarray,
+    y_vec: np.ndarray,
     Params: np.ndarray,
     Met: np.ndarray,
     SolParams: np.ndarray,
     z_pos: np.int64,
     j: np.int64,
 ):
+    
+    logQ = y_vec[0, 0]  # logQ
+    logM = y_vec[1, 0]  # logM
+    phia = y_vec[2, 0]  # phia
+    if SolParams["eqn"][0]==2:
+        phiv = y_vec[3, 0]  # phiv
+        phis = y_vec[4, 0]  # phis
+        phiw = y_vec[5, 0]  # phiw
+        phii = y_vec[6, 0]  # phii
+        Cp = y_vec[7, 0]  # Cp
+        rho = y_vec[8, 0]  # rho
+        T = y_vec[9, 0]  # T
+        theta = y_vec[10, 0]  # theta
+        z = y_vec[11, 0]  # z
+        if SolParams["threeD"][0]:
+            psi = y_vec[12, 0]  # psi
+            x = y_vec[13, 0]  # x
+            y = y_vec[14, 0]  # y
+        else:
+            psi = np.float64(0.0)
+            x = np.float64(0.0)
+            y = np.float64(0.0)
+    elif SolParams["eqn"][0]==1:
+        phiv = y_vec[3, 0]  # phiv
+        phis = y_vec[4, 0]  # phis
+        phiw = y_vec[5, 0]  # phiw
+        phii = np.float64(0.0)  # phii
+        Cp = y_vec[6, 0]  # Cp
+        rho = y_vec[7, 0]  # rho
+        T = y_vec[8, 0]  # T
+        theta = y_vec[9, 0]  # theta
+        z = y_vec[10, 0]  # z
+        if SolParams["threeD"][0]:
+            psi = y_vec[11, 0]  # psi
+            x = y_vec[12, 0]  # x
+            y = y_vec[13, 0]  # y
+        else:
+            psi = np.float64(0.0)
+            x = np.float64(0.0)
+            y = np.float64(0.0)
+    else: # dry
+        phiv = np.float64(0.0)  # phiv
+        phis = y_vec[4, 0]  # phis
+        phiw = np.float64(0.0)  # phiw
+        phii = np.float64(0.0)  # phii
+        Cp = y_vec[6, 0]  # Cp
+        rho = y_vec[7, 0]  # rho
+        T = y_vec[8, 0]  # T
+        theta = y_vec[9, 0]  # theta
+        z = y_vec[10, 0]  # z
+        if SolParams["threeD"][0]:
+            psi = y_vec[11, 0]  # psi
+            x = y_vec[12, 0]  # x
+            y = y_vec[13, 0]  # y
+        else:
+            psi = np.float64(0.0)
+            x = np.float64(0.0)
+            y = np.float64(0.0)
+
 
     if j < SolParams["MaxSolnPnts"]:
 
@@ -70,27 +129,22 @@ def update_soln(
         Rv = Params["Rv"][0]
 
         soln[j, 0] = s  # s
-        soln[j, 1] = y[0, 0]  # logQ
-        soln[j, 2] = y[1, 0]  # logM
-        soln[j, 3] = y[2, 0]  # phia
-        soln[j, 4] = y[3, 0]  # phiv
-        soln[j, 5] = y[4, 0]  # phis
-        soln[j, 6] = y[5, 0]  # phiw
-        soln[j, 7] = y[6, 0]  # phii
-        soln[j, 8] = y[7, 0]  # Cp
-        soln[j, 9] = y[8, 0]  # rho
-        soln[j, 10] = y[9, 0]  # T
-        soln[j, 11] = y[10, 0]  # theta
-        soln[j, 12] = y[11, 0]  # z
-        if SolParams["threeD"][0]:
-            soln[j, 13] = y[12, 0]  # psi
-            soln[j, 14] = y[13, 0]  # x
-            soln[j, 15] = y[14, 0]  # y
-        else:
-            soln[j, 13] = np.float64(0.0)
-            soln[j, 14] = np.float64(0.0)
-            soln[j, 15] = np.float64(0.0)
-        z = y[11, 0]
+        soln[j, 1] = logQ
+        soln[j, 2] = logM
+        soln[j, 3] = phia
+        soln[j, 4] = phiv
+        soln[j, 5] = phis
+        soln[j, 6] = phiw
+        soln[j, 7] = phii
+        soln[j, 8] = Cp
+        soln[j, 9] = rho
+        soln[j, 10] = T
+        soln[j, 11] = theta
+        soln[j, 12] = z
+        soln[j, 13] = psi
+        soln[j, 14] = x
+        soln[j, 15] = y
+        
         MetVals, z_pos = Met_interp(Met, z, z_pos)
         Ta = MetVals["Ta"]
         esa, _ = eswfunc(Ta)  # saturation vapor pressure in atmosphere
@@ -110,11 +164,11 @@ def update_soln(
         soln[j, 20] = rhoAtm  # rhoAtm
         soln[j, 21] = V  # V
         soln[j, 22] = psia  # psia
-        Q = np.exp(y[0, 0])
-        M = np.exp(y[1, 0])
-        L = Q / np.sqrt(y[8, 0] * M)  # L = Q/sqrt(rho*M)
+        Q = np.exp(logQ)
+        M = np.exp(logM)
+        L = Q / np.sqrt(y_vec[8, 0] * M)  # L = Q/sqrt(rho*M)
         U = M / Q  # U = M/Q
-        E = y[7, 0] * y[9, 0] * y[0, 0]  # E = Cp*T*Q
+        E = Cp * T * Q
         soln[j, 23] = L  # L
         soln[j, 24] = L / np.sqrt(2.0)  # Lgaussian
         soln[j, 25] = U  # U
@@ -122,15 +176,15 @@ def update_soln(
         soln[j, 27] = np.pi * Q
         soln[j, 28] = np.pi * M
         soln[j, 29] = np.pi * E  # E
-        soln[j, 30] = soln[j, 3] + soln[j, 4]  # n = phia + phiv
-        soln[j, 31] = U * np.sin(y[10, 0])  # Uz
-        soln[j, 32] = 2.0 * U * np.sin(y[10, 0])  # Uzgaussian
+        soln[j, 30] = phia + phiv
+        soln[j, 31] = U * np.sin(theta)  # Uz
+        soln[j, 32] = 2.0 * U * np.sin(theta)  # Uzgaussian
         j += 1
     return soln, z_pos, j
 
 
 @njit(cache=True)
-def clip_soln(soln: np.ndarray, n: int):
+def clip_soln(soln: np.ndarray, n: np.int64):
 
     return soln[:n, :]
 
