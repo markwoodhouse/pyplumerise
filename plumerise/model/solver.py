@@ -7,13 +7,14 @@ from numba.types import float64, int64, string
 from plumerise.model.setupsoln import init_soln
 
 # from .IC import ICSet
-from .ice_eqns import CheckStep_ice, fice
-from .MetDataSet import Met_interp, SpecHumidity, esfunc, eswfunc
+from .ice.ice_eqns import CheckStep_ice, fice
 # from .ParamSet import ParamsSet
-from .rk import rkstep
+from .ice.rk import rkstep_ice
+from .MetDataSet import Met_interp, SpecHumidity, esfunc, eswfunc
 from .setupsoln import (NeutralHeight, clip_soln, get_soln, init_soln,
                         update_soln)
-from .wet_eqns import CheckStep_wet, fwet
+from .wet.rk import rkstep_wet
+from .wet.wet_eqns import CheckStep_wet, fwet
 
 # from .SolverParams import SolverSet
 
@@ -69,7 +70,6 @@ def NextStep(
 
 @njit(cache=True)
 def integrate(
-    eqn: Callable,
     IC: np.ndarray,
     Params: np.ndarray,
     SolParams: np.ndarray,
@@ -77,7 +77,6 @@ def integrate(
     GT: np.int64,
     Cond: np.int64,
     y_start: np.ndarray,
-    CheckStep: Callable,
 ):
 
     z_pos = np.int64(0)
@@ -113,7 +112,10 @@ def integrate(
         plume_state["HCondense"] = np.float64(0.0)
     
     try:
-        dy, z_pos, eqn_flag = eqn(y, Params, Met, z_pos, GasThrust, threeD)
+        if SolParams['eqn'][0]==2:
+            dy, z_pos_next, eqn_flag = fice(y, Params, Met, z_pos, GasThrust, threeD)
+        elif SolParams['eqn'][0]==1:
+            dy, z_pos_next, eqn_flag = fwet(y, Params, Met, z_pos, GasThrust, threeD)
     except:
         msg = "Nans/Infs in equations at initial step"
         solverFlag = 0
@@ -127,20 +129,35 @@ def integrate(
 
         while h > SolParams['MinStep'][0]:
             
-            z_pos, yt, h_done, h_next, solverFlag = rkstep(
-                y, dy, eqn, h, Params, SolParams, Met, z_pos, GasThrust)
+            if SolParams['eqn'][0]==2:
+                z_pos, yt, h_done, h_next, solverFlag = rkstep_ice(
+                    y, dy, h, Params, SolParams, Met, z_pos, GasThrust)
+                    
+            elif SolParams['eqn'][0]==1:
+                z_pos, yt, h_done, h_next, solverFlag = rkstep_wet(
+                    y, dy, h, Params, SolParams, Met, z_pos, GasThrust)
+            else:
+                print('ERROR: unknown eqn')
             
             if solverFlag<0:
                 h = 0.9*h
                 print('Failed rkstep: reducing step size')
                 continue
             
-            z_pos, GasThrust, Condense, StepFlag = CheckStep(
-                s + h_done, yt, Params, Met, SolParams, z_pos, GasThrust
-            )
+            if SolParams['eqn'][0]==2:
+                z_pos, GasThrust, Condense, StepFlag = CheckStep_ice(
+                    s + h_done, yt, Params, Met, SolParams, z_pos, GasThrust
+                )
+            elif SolParams['eqn'][0]==1:
+                z_pos, GasThrust, Condense, StepFlag = CheckStep_wet(
+                    s + h_done, yt, Params, Met, SolParams, z_pos, GasThrust
+                )
 
             try:
-                dy_next, z_pos_next, eqn_flag = eqn(yt, Params, Met, z_pos, GasThrust, threeD)
+                if SolParams['eqn'][0]==2:
+                    dy_next, z_pos_next, eqn_flag = fice(yt, Params, Met, z_pos, GasThrust, threeD)
+                elif SolParams['eqn'][0]==1:
+                    dy_next, z_pos_next, eqn_flag = fwet(yt, Params, Met, z_pos, GasThrust, threeD)
             except:
                 h = 0.9*h
                 print('Failed rhs calculation: reducing step size')
@@ -153,10 +170,6 @@ def integrate(
         dy = dy_next
         z_pos = z_pos_next
         h = NextStep(h_next, Params, SolParams, Met, y, dy, z_pos, GasThrust)
-
-        if (GotCondHeight == 0) and (Condense == 1):
-            plume_state["HCondense"] = y[14, 0]
-            GotCondHeight = 1
 
         if solverFlag == 0:
             soln = clip_soln(soln, soln_pos+1)
@@ -191,6 +204,10 @@ def integrate(
                 soln = clip_soln(soln, soln_pos)
                 msg = "In solver, step size below minimum"
                 break
+        
+        if (GotCondHeight == 0) and (Condense == 1):
+            plume_state["HCondense"] = get_soln(soln, "z")[-1]
+            GotCondHeight = 1
 
     topPos = np.argmax(get_soln(soln, "z"))
     plume_state["Htop"] = get_soln(soln, "z")[topPos]
@@ -393,33 +410,33 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
     Flag = 1
     return IC, y_start, GasThrust, Condense, Flag
 
-def select_eqn(SolParams):
-    match SolParams["eqn"][0]:
-        case 2:
-            @njit(cache=True)
-            def eqn(yt, Params, Met, z_pos, GasThrust, threeD):
-                return fice(yt, Params, Met, z_pos, GasThrust, threeD)
-            @njit(cache=True)
-            def CheckStep(s,y,Params,Met,SolParams,z_pos,GasThrust):
-                return CheckStep_ice(s,y,Params,Met,SolParams,z_pos,GasThrust)
-        case 1:
-            @njit(cache=True)
-            def eqn(yt, Params, Met, z_pos, GasThrust, threeD):
-                return fwet(yt, Params, Met, z_pos, GasThrust, threeD)
-            @njit(cache=True)
-            def CheckStep(s,y,Params,Met,SolParams,z_pos,GasThrust):
-                return CheckStep_wet(s,y,Params,Met,SolParams,z_pos,GasThrust)
+# def select_eqn(SolParams):
+#     match SolParams["eqn"][0]:
+#         case 2:
+#             @njit(cache=True)
+#             def eqn(yt, Params, Met, z_pos, GasThrust, threeD):
+#                 return fice(yt, Params, Met, z_pos, GasThrust, threeD)
+#             @njit(cache=True)
+#             def CheckStep(s,y,Params,Met,SolParams,z_pos,GasThrust):
+#                 return CheckStep_ice(s,y,Params,Met,SolParams,z_pos,GasThrust)
+#         case 1:
+#             @njit(cache=True)
+#             def eqn(yt, Params, Met, z_pos, GasThrust, threeD):
+#                 return fwet(yt, Params, Met, z_pos, GasThrust, threeD)
+#             @njit(cache=True)
+#             def CheckStep(s,y,Params,Met,SolParams,z_pos,GasThrust):
+#                 return CheckStep_wet(s,y,Params,Met,SolParams,z_pos,GasThrust)
     
-    return eqn, CheckStep
+#     return eqn, CheckStep
 
 
 def solve(Params,SolParams,IC,Met):
 
-    eqn, CheckStep = select_eqn(SolParams)
+    # eqn, CheckStep = select_eqn(SolParams)
     
     IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Params, Met, SolParams)
 
-    plume_state, soln, solverFlag, msg = integrate(eqn, IC, Params, SolParams, Met, GasThrust, Condense, y_start, CheckStep)
+    plume_state, soln, solverFlag, msg = integrate(IC, Params, SolParams, Met, GasThrust, Condense, y_start)
 
     print(msg)
 

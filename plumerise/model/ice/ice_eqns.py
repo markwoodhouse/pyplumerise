@@ -4,7 +4,7 @@ import numpy as np
 from numba import njit
 from numba.types import float64, int64, string
 
-from .MetDataSet import Met_interp, SpecHumidity, esfunc, eswfunc
+from ..MetDataSet import Met_interp, SpecHumidity, esfunc, eswfunc
 
 # from .ParamSet import ParamsSet
 # from .SolverParams import SolverSet
