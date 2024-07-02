@@ -67,9 +67,9 @@ def update_soln(
     logQ = y_vec[0, 0]  # logQ
     logM = y_vec[1, 0]  # logM
     phia = y_vec[2, 0]  # phia
+    phiv = y_vec[3, 0]  # phiv
+    phis = y_vec[4, 0]  # phis
     if SolParams["eqn"][0]==2:
-        phiv = y_vec[3, 0]  # phiv
-        phis = y_vec[4, 0]  # phis
         phiw = y_vec[5, 0]  # phiw
         phii = y_vec[6, 0]  # phii
         Cp = y_vec[7, 0]  # Cp
@@ -86,8 +86,6 @@ def update_soln(
             x = np.float64(0.0)
             y = np.float64(0.0)
     elif SolParams["eqn"][0]==1:
-        phiv = y_vec[3, 0]  # phiv
-        phis = y_vec[4, 0]  # phis
         phiw = y_vec[5, 0]  # phiw
         phii = np.float64(0.0)  # phii
         Cp = y_vec[6, 0]  # Cp
@@ -104,19 +102,17 @@ def update_soln(
             x = np.float64(0.0)
             y = np.float64(0.0)
     else: # dry
-        phiv = np.float64(0.0)  # phiv
-        phis = y_vec[4, 0]  # phis
         phiw = np.float64(0.0)  # phiw
         phii = np.float64(0.0)  # phii
-        Cp = y_vec[6, 0]  # Cp
-        rho = y_vec[7, 0]  # rho
-        T = y_vec[8, 0]  # T
-        theta = y_vec[9, 0]  # theta
-        z = y_vec[10, 0]  # z
+        Cp = y_vec[5, 0]  # Cp
+        rho = y_vec[6, 0]  # rho
+        T = y_vec[7, 0]  # T
+        theta = y_vec[8, 0]  # theta
+        z = y_vec[9, 0]  # z
         if SolParams["threeD"][0]:
-            psi = y_vec[11, 0]  # psi
-            x = y_vec[12, 0]  # x
-            y = y_vec[13, 0]  # y
+            psi = y_vec[10, 0]  # psi
+            x = y_vec[11, 0]  # x
+            y = y_vec[12, 0]  # y
         else:
             psi = np.float64(0.0)
             x = np.float64(0.0)

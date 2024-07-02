@@ -68,6 +68,8 @@ def set_solver_params(
             sp["eqn"][0] = 1
         case "dry":
             sp["eqn"][0] = 0
+        case _:
+            raise ValueError(f'eqn setting {eqn} not recognized.  Valid options are "ice", "wet" or "dry".')
     return sp
 
 
