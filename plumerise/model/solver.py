@@ -85,8 +85,6 @@ def integrate(
 
     threeD = SolParams["threeD"][0]
 
-    Nsize = len(y_start)
-
     soln = init_soln(SolParams["MaxSolnPnts"][0])
 
     plume_state = dict()
@@ -101,7 +99,6 @@ def integrate(
     s = s0
     y = y_start
     h = SolParams["InitStep"][0]
-    h_max = SolParams["MaxStep"][0]
 
     GasThrust = GT
 
@@ -120,7 +117,7 @@ def integrate(
             dy, z_pos_next, eqn_flag = fdry(y, Params, Met, z_pos, GasThrust, threeD)
     except:
         msg = "Nans/Infs in equations at initial step"
-        solverFlag = 0
+        solverFlag = -1
         return plume_state, soln, solverFlag, msg
 
     h = SolParams["InitStep"][0]/np.linalg.norm(dy)
@@ -180,7 +177,7 @@ def integrate(
         z_pos = z_pos_next
         h = NextStep(h_next, Params, SolParams, Met, y, dy, z_pos, GasThrust)
 
-        if solverFlag == 0:
+        if solverFlag < 0:
             soln = clip_soln(soln, soln_pos+1)
             msg = "Something went wrong"
             break
@@ -231,7 +228,7 @@ def integrate(
         get_soln(soln, "z")[topPos] + get_soln(soln, "Lgaussian")[topPos]
     )
     plume_state["Hn"] = NeutralHeight(soln)
-    
+
     if GasThrust == 1:
         plume_state["Collapse"] = 1.0
     else:
@@ -276,7 +273,7 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
 
     phiaA0 = np.float64(1.0) - phivA0
 
-    Catm0 = phiaA0 * Ca + phivA0 * Cv
+    # Catm0 = phiaA0 * Ca + phivA0 * Cv
     # atmospheric density
     Rga0 = phiaA0 * Ra + phivA0 * Rv
     rhoAtm0 = Pa0 / Rga0 / Ta0
@@ -434,7 +431,7 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
                 y_start[11, 0] = np.float64(0.0)
                 y_start[12, 0] = np.float64(0.0)
     
-    Flag = 1
+    Flag = 0
     return IC, y_start, GasThrust, Condense, Flag
 
 # def select_eqn(SolParams):
@@ -467,4 +464,4 @@ def solve(Params,SolParams,IC,Met):
 
     print(msg)
 
-    return soln, solverFlag
+    return soln, plume_state, solverFlag

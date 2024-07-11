@@ -25,11 +25,11 @@ def rkCK_ice(
     threeD: bool,
 ):
 
-    A2 = np.float64(0.2)
-    A3 = np.float64(0.3)
-    A4 = np.float64(0.6)
-    A5 = np.float64(1.0)
-    A6 = np.float64(0.875)
+    # A2 = np.float64(0.2)
+    # A3 = np.float64(0.3)
+    # A4 = np.float64(0.6)
+    # A5 = np.float64(1.0)
+    # A6 = np.float64(0.875)
     B21 = np.float64(0.2)
     B31 = np.float64(3.0) / np.float64(40.0)
     B32 = np.float64(9.0) / np.float64(40.0)
@@ -46,13 +46,13 @@ def rkCK_ice(
     B64 = np.float64(44275.0) / np.float64(110592.0)
     B65 = np.float64(253.0) / np.float64(4096.0)
     C1 = np.float64(37.0) / np.float64(378.0)
-    C2 = np.float64(0.0)
+    # C2 = np.float64(0.0)
     C3 = np.float64(250.0) / np.float64(621.0)
     C4 = np.float64(125.0) / np.float64(594.0)
-    C5 = np.float64(0.0)
+    # C5 = np.float64(0.0)
     C6 = np.float64(512.0) / np.float64(1771.0)
     DC1 = C1 - np.float64(2825.0) / np.float64(27648.0)
-    DC2 = np.float64(0.0)
+    # DC2 = np.float64(0.0)
     DC3 = C3 - np.float64(18575.0) / np.float64(48384.0)
     DC4 = C4 - np.float64(13525.0) / np.float64(55296.0)
     DC5 = -np.float64(277.0) / np.float64(14336.0)
@@ -123,7 +123,7 @@ def rkCK_ice(
     )  # Accumulate increments with proper weights.
     y_err = h * (DC1 * dy + DC3 * ak3 + DC4 * ak4 + DC5 * ak5 + DC6 * ak6)
 
-    Flag = 1
+    Flag = 0
     
     return y_out, y_err, Flag
 
@@ -142,7 +142,7 @@ def rkstep_ice(
 
     threeD = SolParams["threeD"][0]
 
-    solverFlag = 1
+    solverFlag = 0
     h = np.float64(h_in)
     while True:
         yt, y_err, SolverFlag = rkCK_ice(y, dy, h, Params, Met, z_pos, GasThrust, threeD)
@@ -151,7 +151,7 @@ def rkstep_ice(
 
         NaNfound = np.any(np.isnan(yt))
         if NaNfound:
-            solverFlag = 0
+            solverFlag = -1
             return z_pos, np.zeros_like(y), h, h, solverFlag
         else:
             y_scal = SolParams['atol'][0] + SolParams['rtol'][0] * np.maximum(np.abs(y), np.abs(yt))
