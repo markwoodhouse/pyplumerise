@@ -232,7 +232,7 @@ def fwet(
         # Bulk energy conservation
         # A[8,0]*d(logQ)/ds + A[8,1]*d(logM)/ds + A[8,5]*d(phiw)/ds + A[8,6]*d(Cp)/ds
         #  + A[8,8]*dT/ds + A[8,10]*dz/ds = 0
-        A[8, 0] = (Cp * T - Catm * Ta) - np.float64(0.5) * (Ue * Ue + U2)
+        A[8, 0] = (Cp * T - Catm * Ta) + np.float64(0.5) * (U2 - Ue * Ue)
         A[8, 1] = U2
         A[8, 6] = T
         A[8, 8] = Cp
@@ -261,7 +261,7 @@ def fwet(
         #  + A[8,8]*dT/ds + A[8,10]*dz/ds = 0
         A[8, 0] = (
             (Cp * T - Catm * Ta)
-            - np.float64(0.5) * (Ue * Ue + U2)
+            + np.float64(0.5) * (U2 - Ue * Ue)
             - Lv0 * (phivA - phiv)
         ) * (Pa - es) * (Pa - es)
         A[8, 1] = (Pa - es) * (Pa - es) * U2

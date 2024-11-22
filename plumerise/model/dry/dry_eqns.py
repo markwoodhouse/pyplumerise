@@ -209,7 +209,7 @@ def fdry(
     # Bulk energy conservation
     # A[7,0]*d(logQ)/ds + A[7,1]*d(logM)/ds + A[7,5]*d(Cp)/ds
     #  + A[7,7]*dT/ds + A[7,9]*dz/ds = 0
-    A[7, 0] = (Cp * T - Catm * Ta) - np.float64(0.5) * (Ue * Ue + U2)
+    A[7, 0] = (Cp * T - Catm * Ta) + np.float64(0.5) * (U2 - Ue * Ue)
     A[7, 1] = U2
     A[7, 5] = T
     A[7, 7] = Cp
