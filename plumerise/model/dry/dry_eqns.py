@@ -265,9 +265,6 @@ def fdry(
     try:
         dy = np.linalg.solve(A, B)
     except:
-        print ('bad matrices')
-        print(A)
-        print(B)
         dy = np.zeros_like(B)
         Flag = -1
         return dy, z_pos, Flag

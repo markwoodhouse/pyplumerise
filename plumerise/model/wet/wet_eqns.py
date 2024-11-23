@@ -326,7 +326,6 @@ def fwet(
     try:
         dy = np.linalg.solve(A, B)
     except:
-        print ('bad matrices')
         dy = np.zeros_like(B)
         Flag = -1
         return dy, z_pos, Flag

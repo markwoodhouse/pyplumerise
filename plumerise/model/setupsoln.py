@@ -162,7 +162,7 @@ def update_soln(
         soln[j, 22] = psia  # psia
         Q = np.exp(logQ)
         M = np.exp(logM)
-        L = Q / np.sqrt(y_vec[8, 0] * M)  # L = Q/sqrt(rho*M)
+        L = Q / np.sqrt(rho * M)  # L = Q/sqrt(rho*M)
         U = M / Q  # U = M/Q
         E = Cp * T * Q
         soln[j, 23] = L  # L

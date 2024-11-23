@@ -77,6 +77,7 @@ def integrate(
     GT: np.int64,
     Cond: np.int64,
     y_start: np.ndarray,
+    verbose: bool = True,
 ):
 
     z_pos = np.int64(0)
@@ -89,7 +90,9 @@ def integrate(
 
     plume_state = dict()
 
-    plume_state["Q0"] = np.pi * y_start[0][0]
+    Q0 = np.exp(y_start[0][0])
+
+    plume_state["Q0"] = np.pi * Q0
     plume_state["Qs0"] = (1.0 - IC["n0"][0]) * plume_state["Q0"]
     soln_pos = np.int64(0)
     soln, z_pos, soln_pos = update_soln(
@@ -141,7 +144,8 @@ def integrate(
             
             if solverFlag<0:
                 h = 0.9*h
-                print('Failed rkstep: reducing step size')
+                if verbose:
+                    print('Failed rkstep: reducing step size')
                 continue
             
             if SolParams['eqn'][0]==2:
@@ -166,7 +170,8 @@ def integrate(
                     dy_next, z_pos_next, eqn_flag = fdry(yt, Params, Met, z_pos, GasThrust, threeD)
             except:
                 h = 0.9*h
-                print('Failed rhs calculation: reducing step size')
+                if verbose:
+                    print('Failed rhs calculation: reducing step size')
                 continue
 
             break
@@ -454,14 +459,15 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
 #     return eqn, CheckStep
 
 
-def solve(Params,SolParams,IC,Met):
+def solve(Params,SolParams,IC,Met,verbose=True):
 
     # eqn, CheckStep = select_eqn(SolParams)
     
     IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Params, Met, SolParams)
 
-    plume_state, soln, solverFlag, msg = integrate(IC, Params, SolParams, Met, GasThrust, Condense, y_start)
+    plume_state, soln, solverFlag, msg = integrate(IC, Params, SolParams, Met, GasThrust, Condense, y_start, verbose=verbose)
 
-    print(msg)
+    if verbose:
+        print(msg)
 
     return soln, plume_state, solverFlag
