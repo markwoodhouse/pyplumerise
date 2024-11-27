@@ -33,10 +33,12 @@ def NextStep(
     GasThrust: np.int64,
 ):
     
-    logQ = y[1,0]
-    logM = y[2,0]
+    logQ = y[0,0]
+    logM = y[1,0]
+    dlogQ = dy[0,0]
+    dlogM = dy[1,0]
     U = np.exp(logM-logQ) # y[0,0] = logQ, y[1,0] = logM, M/Q = exp(logM - logQ)
-    dU = U * (dy[1,0]-dy[0,0]) # dU/ds = U * (d(logM)/ds - d(logQ)/ds)
+    dU = U * (dlogM-dlogQ) # dU/ds = U * (d(logM)/ds - d(logQ)/ds)
 
     if SolParams["eqn"][0]==2: # ice
         theta = y[10, 0]
