@@ -45,7 +45,6 @@ def fdry(
     Ra = Params["Ra"][0]
     Rv = Params["Rv"][0]
     rhos = Params["rhos"][0]
-    Lv0 = Params["Lv0"][0]
 
     ks = Params["ks"][0]
     kw = Params["kw"][0]
