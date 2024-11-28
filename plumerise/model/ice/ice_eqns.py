@@ -282,7 +282,7 @@ def fice(
         if IceType == 1:  # Mixed
             A[9, 0] = (
                 (Cp * T - Catm * Ta) * (T - Ti00) * (T - Ti00)
-                + np.float64(0.5) * (U2 - Ue * Ue) * (T - Ti00) * (T - Ti00)
+                - np.float64(0.5) * (U2 + Ue * Ue) * (T - Ti00) * (T - Ti00)
                 - Lm0 * (Ti0 - T) * (T - Ti00) * phiw
             )
             A[9, 1] = U2  * (T - Ti00) * (T - Ti00)
@@ -291,7 +291,7 @@ def fice(
             A[9, 9] = (T - Ti00) * (T - Ti00) * Cp + Lm0 * phiw * (Ti0 - Ti00)
             A[9, 11] = (T - Ti00) * (T - Ti00) * g
         else:  # no ice or all ice
-            A[9, 0] = (Cp * T - Catm * Ta) + np.float64(0.5) * (U2 - Ue * Ue)
+            A[9, 0] = (Cp * T - Catm * Ta) - np.float64(0.5) * (U2 + Ue * Ue)
             A[9, 1] = U2
             A[9, 7] = T
             A[9, 9] = Cp
@@ -359,7 +359,7 @@ def fice(
         if IceType == 0:  # No ice
             A[9, 0] = (
                 (Cp * T - Catm * Ta)
-                + np.float64(0.5) * (U2 - Ue * Ue)
+                - np.float64(0.5) * (U2 + Ue * Ue)
                 - Lv0 * (phivA - phiv)
             ) * (Pa - es) * (Pa - es)
             A[9, 1] = (Pa - es) * (Pa - es) * U2
@@ -376,7 +376,7 @@ def fice(
         elif IceType == 1:  # Mixed
             A[9, 0] = (
                 ((Cp * T - Catm * Ta)
-                + np.float64(0.5)*(U2 - Ue * Ue)
+                - np.float64(0.5)*(U2 + Ue * Ue)
                 - Lv0 * (phivA - phiv)) * (T - Ti00) * (T - Ti00)
                 - Lm0 * (Ti0 - T) * (T - Ti00) * phiw
             ) * (Pa - es) * (Pa - es)
@@ -396,7 +396,7 @@ def fice(
         else:  # all ice
             A[9, 0] = (
                 (Cp * T - Catm * Ta)
-                + np.float64(0.5) * (U2 - Ue * Ue)
+                - np.float64(0.5) * (U2 + Ue * Ue)
                 - (Lv0 + Lm0) * (phivA - phiv)
             ) * (Pa - es) * (Pa - es)
             A[9, 1] = (Pa - es) * (Pa - es) * U2
