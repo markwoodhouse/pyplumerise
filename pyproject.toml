@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "plumerise"
-version = "0.1.0"
+version = "0.1.2"
 description = "Model of wind-blown volcanic plumes"
 authors = ["Mark Woodhouse <mark.woodhouse@bristol.ac.uk>"]
 

@@ -127,3 +127,39 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+1000_try.py
+.DS_Store
+computeRMS.py
+error detection in results.py
+error_detection_in_results.py
+eru_vh.pkl
+exec model.py
+Failed.npz
+gain d'espace.py
+getAtmArray.py
+getcoordinate.py
+getIVESPAtable.py
+getsortedresult.py
+IVESPAvn1.0.xlsx
+load_data.py
+metrique 2.py
+monte carlo model.py
+monte carlo old data opti.py
+monte carlo old data.py
+neutralbuoyancy.py
+poetry.lock
+Run20.npz
+Run1619.npz
+Run2425.npz
+Run23410.npz
+SmallSets.npz
+try_1000.py
+Atmospheric_Profiles/README.txt
+*.csv
+*.val
+/file_system_store
+/Results
+*.pkl
+poetry.lock
+Results.zip
+poetry.lock
