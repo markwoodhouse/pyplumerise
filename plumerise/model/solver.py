@@ -72,7 +72,6 @@ def NextStep(
 
 @njit(cache=True)
 def integrate(
-    IC: np.ndarray,
     Params: np.ndarray,
     SolParams: np.ndarray,
     Met: np.ndarray,
@@ -95,7 +94,8 @@ def integrate(
     Q0 = np.exp(y_start[0][0])
 
     plume_state["Q0"] = np.pi * Q0
-    plume_state["Qs0"] = (1.0 - IC["n0"][0]) * plume_state["Q0"]
+    phis0 = y_start[4, 0]
+    plume_state["Qs0"] = phis0 * plume_state["Q0"]
     soln_pos = np.int64(0)
     soln, z_pos, soln_pos = update_soln(
         soln, s0, y_start, Params, Met, SolParams, z_pos, soln_pos
@@ -214,7 +214,8 @@ def integrate(
             msg = "Stop condition satisfied"
             break
         elif StepFlag == 0:
-            if (s - sold) > SolParams["OutStep"][0]:
+
+            if (SolParams["OutStep"][0]<0) or (s - sold) > SolParams["OutStep"][0]:
                 soln, z_pos, soln_pos = update_soln(
                     soln, s, y, Params, Met, SolParams, z_pos, soln_pos
                 )
@@ -244,7 +245,7 @@ def integrate(
     return plume_state, soln, solverFlag, msg
 
 
-def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams: np.ndarray):
+def integrateICs(IC: dict, Params: np.ndarray, Met: np.ndarray, SolParams: np.ndarray):
 
     # Calculate some starting values
 
@@ -252,7 +253,7 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
 
     z_pos = np.int64(0)
 
-    MetVals, z_pos = Met_interp(Met, IC["z0"][0], z_pos)
+    MetVals, z_pos = Met_interp(Met, IC["z0"], z_pos)
 
     psi0 = MetVals["psia"]
     Ta0 = MetVals["Ta"]
@@ -273,6 +274,8 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
     Ci = Params["Ci"][0]
     Cs = Params["Cs"][0]
     rhos = Params["rhos"][0]
+    rhow = Params["rhow"][0]
+    rhoi = Params["rhoi"][0]
     Ti0 = Params["Ti0"][0]
     Ti00 = Params["Ti00"][0]
 
@@ -286,26 +289,69 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
     rhoAtm0 = Pa0 / Rga0 / Ta0
 
     # Set some related initial quantities
-    IC["phia0"][0] = np.float64(0.0)  # no dry air at vent -- all gas is water vapour
-    IC["phiv0"][0] = IC["n0"][0]  # all gas at vent is water vapour
-    IC["phiw0"][0] = np.float64(0.0)  # no liquid water at vent
-    IC["phii0"][0] = np.float64(0.0)  # no ice at vent
-    IC["phis0"][0] = np.float64(1.0) - IC["n0"][0]  # solids mass fraction at vent
-    IC["Rg0"][0] = (IC["phiv0"][0] * Rv + IC["phia0"][0] * Ra) / (
-        IC["phia0"][0] + IC["phiv0"][0]
+    IC["n0"] = IC["phia0"] + IC["phiv0"]
+    IC["Rg0"] = (IC["phiv0"] * Rv + IC["phia0"] * Ra) / (
+        IC["phia0"] + IC["phiv0"]
     )  # bulk gas constant of volcanic gas at vent
-    IC["rho0"][0] = np.float64(1.0) / (
-        IC["n0"][0] * IC["Rg0"][0] * IC["T0"][0] / IC["Pa0"][0]
-        + (np.float64(1.0) - IC["n0"][0]) / rhos
+    
+    IC["rho0"] = np.float64(1.0) / (
+        IC["n0"] * IC["Rg0"] * IC["T0"] / IC["Pa0"]
+        + IC["phis0"] / rhos + IC["phiw0"] / rhow + IC["phii0"] / rhoi
     )  # bulk density of the plume
 
-    Pv0 = IC["phiv0"][0] * Rv / (IC["phia0"][0] * Ra + IC["phiv0"][0] * Rv) * IC["Pa0"]
+    Pv0 = IC["phiv0"] * Rv / (IC["phia0"] * Ra + IC["phiv0"] * Rv) * IC["Pa0"]
+
+    IC["Cp0"] = (
+        IC["phia0"] * Ca
+        + IC["phis0"] * Cs
+        + IC["phiv0"] * Cv
+        + IC["phiw0"] * Cw
+        + IC["phii0"] * Ci
+    )  # specific heat capacity of bulk plume
+
+    # Source fluxes
+    if IC["L0"] is not None and IC["U0"] is not None:
+        IC["Q0"] = (
+            IC["rho0"] * IC["U0"] * IC["L0"] * IC["L0"]
+        )  # [kg/s] mass flux at vent
+        IC["M0"] = (
+            IC["rho0"] * IC["U0"] * IC["U0"] * IC["L0"] * IC["L0"]
+        )  # [kg*m/s^2] momentum flux at vent
+    elif IC["Q0"] is not None and IC["M0"] is not None:
+        IC["Q0"] = IC["Q0"] / np.pi
+        IC["U0"] = IC["M0"] / IC["Q0"]
+        IC["L0"] = IC["Q0"] / np.sqrt(IC["M0"] * IC["rho0"])
+    elif IC["L0"] is not None and IC["Q0"] is not None:
+        IC["Q0"] = IC["Q0"] / np.pi
+        IC["U0"] = IC["Q0"] / IC["rho0"] / (IC["L0"]**2)
+        IC["M0"] = IC["Q0"] * IC["U0"]  # [kg*m/s^2] momentum flux at vent
+    elif IC["L0"] is not None and IC["M0"] is not None:
+        IC["M0"] = IC["M0"] / np.pi
+        IC["U0"] = np.sqrt(IC["M0"] / IC["rho0"]) / IC["L0"]
+        IC["Q0"] = IC["M0"] / IC["U0"]  # [kg/s] mass flux at vent
+    elif IC["U0"] is not None and IC["Q0"] is not None:
+        IC["Q0"] = IC["Q0"] / np.pi
+        IC["L0"] = np.sqrt(IC["Q0"] / IC["rho0"] / IC["U0"])
+        IC["M0"] = IC["Q0"] * IC["U0"]  # [kg*m/s^2] momentum flux at vent
+    elif IC["U0"] is not None and IC["M0"] is not None:
+        IC["M0"] = IC["M0"] / np.pi
+        IC["L0"] = np.sqrt(IC["M0"] / IC["rho0"]) / IC["U0"]
+        IC["Q0"] = IC["M0"] / IC["U0"]  # [kg/s] mass flux at vent
+    else:
+        raise ValueError(
+            "Error in setting initial conditions.  Incomplete input data found."
+        )
+
+    if IC["T0"] is not None:
+        IC["E0"] = IC["Q0"] * IC["Cp0"] * IC["T0"]
+    else:
+        IC["T0"] = IC["E0"] / (IC["Q0"] * IC["Cp0"])
     
     match SolParams["eqn"][0]:
         case 2:
-            es0, _ = esfunc(IC["T0"][0], Ti0, Ti00)
+            es0, _ = esfunc(IC["T0"], Ti0, Ti00)
         case _:
-            es0, _ = eswfunc(IC["T0"][0])
+            es0, _ = eswfunc(IC["T0"])
 
     if SolParams['eqn'][0]>0:
         if Pv0 > es0:
@@ -316,61 +362,10 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
         Condense = np.int64(0)
 
     # Do some checks on initial conditions
-    if IC["rho0"][0] <= 0:
+    if IC["rho0"] <= 0:
         raise ValueError("Inputs produce unphysical rho0 < 0.")
 
-
-    IC["Cp0"][0] = (
-        IC["phia0"][0] * Ca
-        + IC["phis0"][0] * Cs
-        + IC["phiv0"][0] * Cv
-        + IC["phiw0"][0] * Cw
-        + IC["phii0"][0] * Ci
-    )  # specific heat capacity of bulk plume
-
-    # Source fluxes
-    if IC["L0"][0] > 0.0 and IC["U0"][0] > 0.0:
-        IC["Q0"][0] = (
-            IC["rho0"][0] * IC["U0"][0] * IC["L0"][0] * IC["L0"][0]
-        )  # [kg/s] mass flux at vent
-        IC["M0"][0] = (
-            IC["rho0"][0] * IC["U0"][0] * IC["U0"][0] * IC["L0"][0] * IC["L0"][0]
-        )  # [kg*m/s^2] momentum flux at vent
-    elif IC["Q0"][0] > 0.0 and IC["M0"][0] > 0.0:
-        IC["Q0"][0] = IC["Q0"][0] / np.pi
-        IC["U0"][0] = IC["M0"][0] / IC["Q0"][0]
-        IC["L0"][0] = IC["Q0"][0] / np.sqrt(IC["M0"][0] * IC["rho0"][0])
-    elif IC["L0"][0] > 0.0 and IC["Q0"][0] > 0.0:
-        IC["Q0"][0] = IC["Q0"][0] / np.pi
-        IC["U0"][0] = IC["Q0"][0] / IC["rho0"][0] / IC["L0"][0] / IC["L0"][0]
-        IC["M0"][0] = (
-            IC["Q0"][0] * IC["Q0"][0] / IC["rho0"][0] / IC["L0"][0] / IC["L0"][0]
-        )  # [kg*m/s^2] momentum flux at vent
-    elif IC["L0"][0] > 0.0 and IC["M0"][0] > 0.0:
-        IC["M0"][0] = IC["M0"][0] / np.pi
-        IC["U0"][0] = np.sqrt(IC["M0"][0] / IC["rho0"][0]) / IC["L0"][0]
-        IC["Q0"][0] = IC["L0"][0] * np.sqrt(
-            IC["rho0"][0] * IC["M0"][0]
-        )  # [kg/s] mass flux at vent
-    elif IC["U0"][0] > 0.0 and IC["Q0"][0] > 0.0:
-        IC["Q0"][0] = IC["Q0"][0] / np.pi
-        IC["L0"][0] = np.sqrt(IC["Q0"][0] / IC["rho0"][0] / IC["U0"][0])
-        IC["M0"][0] = IC["Q0"][0] * IC["U0"][0]  # [kg*m/s^2] momentum flux at vent
-    elif IC["U0"][0] > 0.0 and IC["M0"][0] > 0.0:
-        IC["M0"][0] = IC["M0"][0] / np.pi
-        IC["L0"][0] = np.sqrt(IC["M0"][0] / IC["rho0"][0]) / IC["U0"][0]
-        IC["Q0"][0] = IC["M0"][0] / IC["U0"][0]  # [kg/s] mass flux at vent
-    else:
-        raise ValueError(
-            "Error in setting initial conditions.  Incomplete input data found."
-        )
-
-    IC["M0"][0] = (
-        IC["rho0"][0] * IC["U0"][0] * IC["U0"][0] * IC["L0"][0] * IC["L0"][0]
-    )  # [kg*m/s^2] momentum flux at vent
-    IC["E0"][0] = IC["Q0"][0] * IC["Cp0"][0] * IC["T0"][0]
-
-    if IC["rho0"][0] > rhoAtm0:
+    if IC["rho0"] > rhoAtm0:
         GasThrust = np.int64(1)  # density of plume at source is bigger than atmospheric
     else:
         GasThrust = np.int64(0)
@@ -382,18 +377,18 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
             Nsize = 15 if threeD else 12
             
             y_start = np.zeros((Nsize, 1), dtype=np.float64)
-            y_start[0, 0] = np.log(IC["Q0"][0])
-            y_start[1, 0] = np.log(IC["M0"][0])
-            y_start[2, 0] = IC["phia0"][0]
-            y_start[3, 0] = IC["phiv0"][0]
-            y_start[4, 0] = IC["phis0"][0]
-            y_start[5, 0] = IC["phiw0"][0]
-            y_start[6, 0] = IC["phii0"][0]
-            y_start[7, 0] = IC["Cp0"][0]
-            y_start[8, 0] = IC["rho0"][0]
-            y_start[9, 0] = IC["T0"][0]
-            y_start[10, 0] = np.float64(0.5) * np.pi
-            y_start[11, 0] = IC["z0"][0]
+            y_start[0, 0] = np.log(IC["Q0"])
+            y_start[1, 0] = np.log(IC["M0"])
+            y_start[2, 0] = IC["phia0"]
+            y_start[3, 0] = IC["phiv0"]
+            y_start[4, 0] = IC["phis0"]
+            y_start[5, 0] = IC["phiw0"]
+            y_start[6, 0] = IC["phii0"]
+            y_start[7, 0] = IC["Cp0"]
+            y_start[8, 0] = IC["rho0"]
+            y_start[9, 0] = IC["T0"]
+            y_start[10, 0] = IC["theta0"]
+            y_start[11, 0] = IC["z0"]
             if threeD:
                 y_start[12, 0] = psi0
                 y_start[13, 0] = np.float64(0.0)
@@ -403,17 +398,17 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
             Nsize = 14 if threeD else 11
             
             y_start = np.zeros((Nsize, 1), dtype=np.float64)
-            y_start[0, 0] = np.log(IC["Q0"][0])
-            y_start[1, 0] = np.log(IC["M0"][0])
-            y_start[2, 0] = IC["phia0"][0]
-            y_start[3, 0] = IC["phiv0"][0]
-            y_start[4, 0] = IC["phis0"][0]
-            y_start[5, 0] = IC["phiw0"][0]
-            y_start[6, 0] = IC["Cp0"][0]
-            y_start[7, 0] = IC["rho0"][0]
-            y_start[8, 0] = IC["T0"][0]
-            y_start[9, 0] = np.float64(0.5) * np.pi
-            y_start[10, 0] = IC["z0"][0]
+            y_start[0, 0] = np.log(IC["Q0"])
+            y_start[1, 0] = np.log(IC["M0"])
+            y_start[2, 0] = IC["phia0"]
+            y_start[3, 0] = IC["phiv0"]
+            y_start[4, 0] = IC["phis0"]
+            y_start[5, 0] = IC["phiw0"]
+            y_start[6, 0] = IC["Cp0"]
+            y_start[7, 0] = IC["rho0"]
+            y_start[8, 0] = IC["T0"]
+            y_start[9, 0] = IC["theta0"]
+            y_start[10, 0] = IC["z0"]
             if threeD:
                 y_start[11, 0] = psi0
                 y_start[12, 0] = np.float64(0.0)
@@ -423,16 +418,16 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
             Nsize = 13 if threeD else 10
 
             y_start = np.zeros((Nsize, 1), dtype=np.float64)
-            y_start[0, 0] = np.log(IC["Q0"][0])
-            y_start[1, 0] = np.log(IC["M0"][0])
-            y_start[2, 0] = IC["phia0"][0]
-            y_start[3, 0] = IC["phiv0"][0]
-            y_start[4, 0] = IC["phis0"][0]
-            y_start[5, 0] = IC["Cp0"][0]
-            y_start[6, 0] = IC["rho0"][0]
-            y_start[7, 0] = IC["T0"][0]
-            y_start[8, 0] = np.float64(0.5) * np.pi
-            y_start[9, 0] = IC["z0"][0]
+            y_start[0, 0] = np.log(IC["Q0"])
+            y_start[1, 0] = np.log(IC["M0"])
+            y_start[2, 0] = IC["phia0"]
+            y_start[3, 0] = IC["phiv0"]
+            y_start[4, 0] = IC["phis0"]
+            y_start[5, 0] = IC["Cp0"]
+            y_start[6, 0] = IC["rho0"]
+            y_start[7, 0] = IC["T0"]
+            y_start[8, 0] = IC["theta0"]
+            y_start[9, 0] = IC["z0"]
             if threeD:
                 y_start[10, 0] = psi0
                 y_start[11, 0] = np.float64(0.0)
@@ -441,25 +436,6 @@ def integrateICs(IC: np.ndarray, Params: np.ndarray, Met: np.ndarray, SolParams:
     Flag = 0
     return IC, y_start, GasThrust, Condense, Flag
 
-# def select_eqn(SolParams):
-#     match SolParams["eqn"][0]:
-#         case 2:
-#             @njit(cache=True)
-#             def eqn(yt, Params, Met, z_pos, GasThrust, threeD):
-#                 return fice(yt, Params, Met, z_pos, GasThrust, threeD)
-#             @njit(cache=True)
-#             def CheckStep(s,y,Params,Met,SolParams,z_pos,GasThrust):
-#                 return CheckStep_ice(s,y,Params,Met,SolParams,z_pos,GasThrust)
-#         case 1:
-#             @njit(cache=True)
-#             def eqn(yt, Params, Met, z_pos, GasThrust, threeD):
-#                 return fwet(yt, Params, Met, z_pos, GasThrust, threeD)
-#             @njit(cache=True)
-#             def CheckStep(s,y,Params,Met,SolParams,z_pos,GasThrust):
-#                 return CheckStep_wet(s,y,Params,Met,SolParams,z_pos,GasThrust)
-    
-#     return eqn, CheckStep
-
 
 def solve(Params,SolParams,IC,Met,verbose=True):
 
@@ -467,7 +443,7 @@ def solve(Params,SolParams,IC,Met,verbose=True):
     
     IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Params, Met, SolParams)
 
-    plume_state, soln, solverFlag, msg = integrate(IC, Params, SolParams, Met, GasThrust, Condense, y_start, verbose=verbose)
+    plume_state, soln, solverFlag, msg = integrate(Params, SolParams, Met, GasThrust, Condense, y_start, verbose=verbose)
 
     if verbose:
         print(msg)

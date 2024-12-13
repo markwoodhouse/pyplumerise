@@ -127,12 +127,13 @@ def fdry(
     if GasThrust == 1:
         GT = 1 * (rho > rhoAtm)
 
-    # Change entrainment coefficient if in Gas thrust region
-    if (GasThrust == 1) and (GT == 1):
+    # Change entrainment coefficient if in Gas thrust region, if selected
+    if (Params["gas_thrust_entrainment"]) and (GasThrust == 1) and (GT == 1):
         ks_var = np.sqrt(rho / rhoAtm) / np.float64(16.0)
     else:
         ks_var = ks
-
+    
+    # Ue = ks_var * np.abs(U - V * cos_theta) + kw * np.abs(V * sin_theta)
     Ue = ks_var * np.abs(U - V * cos_theta) + kw * np.abs(V * sin_theta)
     # Entrainment velocity from Hewett, Fay & Hoult (1971)
     
