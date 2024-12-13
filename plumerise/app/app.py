@@ -20,6 +20,7 @@ from geopy import distance
 from numpy import abs, log10
 from pandas import Categorical, DataFrame
 from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
+
 from plumerise.model.ensemble_solve import solve_ensemble
 
 from ..data import StationList
@@ -1629,8 +1630,6 @@ def make_dashboard():
         if changed_id == "data-download-button":
 
             df = DataFrame(df_in)
-
-            print(df)
 
             if dataset=="match":
                 hmin = float(obs_min['value'])

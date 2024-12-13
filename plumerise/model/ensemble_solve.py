@@ -161,7 +161,7 @@ def solve_plume(vent_elevation,
 
     IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Parameters, Met)
 
-    plume_state, _, _, _ = integrate(IC, Parameters, SolParams, Met, GasThrust, Condense, y_start)
+    plume_state, _, _, _ = integrate(Parameters, SolParams, Met, GasThrust, Condense, y_start)
 
     return {
         'Q0': plume_state['Q0'],
@@ -199,13 +199,6 @@ def run_solve_plume(params,
             met_data
     )
 
-        # ret = [soln['Q0'],
-        #     soln['Hn'],
-        #     soln['Htop'],
-        #     soln['HtopL'],
-        #     soln['HtopLg'],
-        #     soln['HCondense'],
-        #     soln['Collapse']]
         
     ret = {
         'Q0': soln['Q0'],
@@ -235,16 +228,3 @@ def solve_ensemble(sample_settings, ensemble_size, met_data):
 
     return pd.merge(df, df_out, left_index=True, right_index=True)
 
-
-
-# IC = ICSet()
-
-# Params = ParamsSet()
-
-# SolParams = SolverSet()
-
-# IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Params, Met)
-
-# soln, solverFlag, msg = integrate(
-#     IC, Params, SolParams, Met, GasThrust, Condense, y_start
-# )

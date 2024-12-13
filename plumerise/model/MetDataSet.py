@@ -19,7 +19,7 @@ from netCDF4 import Dataset
 
 
 @njit(cache=True)
-def locate(xx: np.ndarray, x: float64):
+def locate(xx: np.ndarray, x: np.float64):
     """locate: From Numerical Recipes in Fortran 90
         Given an array xx, and given a value x, returns a value j such that x is between
         xx(j) and xx(j + 1). xx must be monotonic, either increasing or decreasing. j = 0 or
@@ -29,6 +29,16 @@ def locate(xx: np.ndarray, x: float64):
     """
     
     n = len(xx)
+    # Check if in range of data, quick exit if not
+    if x<xx[0]:
+        return -1
+    if x>xx[-1]:
+        return n
+    if np.isclose(x,xx[0]):
+        return 0
+    if np.isclose(x,xx[-1]):
+        return n-1
+    
     ascnd = (xx[-1] >= xx[0]) # True if ascending order of table, false otherwise.
     jl=0     # Initialize lower
     ju=n+1   # and upper limits.
@@ -39,9 +49,9 @@ def locate(xx: np.ndarray, x: float64):
       else:
         ju=jm # or the upper limit, as appropriate.
 
-    if (x == xx[0]): # Then set the output, being careful with the endpoints.
-      locate=1
-    elif (x == xx[-1]):
+    if (np.isclose(x, xx[0])): # Then set the output, being careful with the endpoints.
+      locate=0
+    elif (np.isclose(x, xx[-1])):
       locate=n-1
     else:
       locate=jl
@@ -49,10 +59,10 @@ def locate(xx: np.ndarray, x: float64):
     return locate
 
 @njit(cache=True)
-def hunt(xx: np.ndarray, x: float64, jlo: int64):
+def hunt(xx: np.ndarray, x: np.float64, jlo: np.int64):
     """hunt: From Numerical Recipes in Fortran 90
         Given an array xx, and given a value x, returns a value jlo such that x is between
-        xx(jlo) and xx(jlo+1). xx must be monotonic, either increasing or decreasing. jlo = 0
+        xx(jlo) and xx(jlo+1). xx must be monotonic, either increasing or decreasing. jlo = -1
         or jlo = N is returned to indicate that x is out of range. jlo on input is taken as the
         initial guess for jlo on output.
         Inputs: jlo [integer] - guess for position in data list.; 
@@ -60,18 +70,32 @@ def hunt(xx: np.ndarray, x: float64, jlo: int64):
         Output: jlo [integer] - location in list xx with xx(jlo)<x<xx(jlo+1)
     """
 
-    
     n = len(xx)
+    # Check if in range of data, quick exit if not
+    if x<xx[0]:
+        return -1
+    if x>xx[-1]:
+        return n
+    if np.isclose(x,xx[0]):
+        return 0
+    if np.isclose(x,xx[-1]):
+        return n-1
+    
+    # Check if input jlo already brackets the value
+    if (jlo<n-1 and (xx[jlo]-x)*(xx[jlo+1]-x)<0):
+        return jlo
+
     ascnd = (xx[-1] >= xx[0]) # True if ascending order of table, false otherwise.
-    if (jlo <= 0) or (jlo > n): # Input guess not useful. Go immediately to bisection.
-        jhi=n+1
+    if (jlo < 0) or (jlo > n-1): # Input guess not useful. Go immediately to bisection.
+        jlo = 0
+        jhi = n
     else:
         inc=1 # Set the hunting increment.
         if ((x >= xx[jlo]) == ascnd): # Hunt up:
             while True:
                 jhi=jlo+inc
-                if (jhi > n): # Done hunting, since off end of table.
-                    jhi=n+1
+                if (jhi > n-1): # Done hunting, since off end of table.
+                    jhi=n
                     break
                 else:
                     if ((x < xx[jhi]) == ascnd): break
@@ -82,17 +106,17 @@ def hunt(xx: np.ndarray, x: float64, jlo: int64):
             while True:
                 jlo=jhi-inc
                 if (jlo < 0): # Done hunting, since off end of table.
-                    jlo=0
+                    jlo=-1
                     break
                 else:
-                    if (x >= xx[jlo] == ascnd): break
+                    if ((x >= xx[jlo]) == ascnd): break
                     jhi=jlo # Not done hunting,
                     inc=inc+inc # so double the increment
     
     while True: # Hunt is done, so begin the final bisection phase:
         if (jhi-jlo <= 1):
-            if (x == xx[-1]): jlo=np.int64(n)
-            if (x == xx[0]): jlo=np.int64(1)
+            if (np.isclose(x, xx[-1])): jlo=np.int64(n-1)
+            if (np.isclose(x, xx[0])): jlo=np.int64(0)
             break
         else:
             jm=(jhi+jlo)//2
@@ -104,7 +128,7 @@ def hunt(xx: np.ndarray, x: float64, jlo: int64):
     return jlo
 
 @njit(cache=True)
-def interp1angle(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
+def interp1angle(x: np.ndarray, y: np.ndarray, x_req: np.float64, jpos: np.int64):
     """ Interpolation within an angle data array where y data is contrained to be between 0 and 2*pi, or constant extrapolation outside.
         Inputs: x [real[:]] -  contains x values;
                 y [real[:]] -  contains y values;
@@ -123,29 +147,22 @@ def interp1angle(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
         y1 = y[0]
         y2 = y[1]
     elif (x_req > x[-1]):
-        x1 = x[-1]
-        x2 = x_req
-        y1 = y[-1]
-        y2 = y[-1]          
+        return y[-1], Nx
     else:
-        if (jpos>Nx):
-            j = locate(x, x_req)
-            x1 = x[j]
-            x2 = x[j+1]
-            y1 = y[j]
-            y2 = y[j+1]
+        jpos = hunt(x[:], x_req, jpos)
+        if jpos>Nx-2:
+            return y[-1], Nx
         else:
-          jpos = hunt(x[:], x_req, jpos)
-          x1 = x[jpos]
-          x2 = x[jpos+1]
-          y1 = y[jpos]
-          y2 = y[jpos+1]
-      
+            x1 = x[jpos]
+            x2 = x[jpos+1]
+            y1 = y[jpos]
+            y2 = y[jpos+1]
+    
     if (np.abs(y2-y1)>np.pi):
         if (y2>y1):
-            y1 = y1+2.0*np.pi
+            y1 = y1+2*np.pi
         else:
-            y2 = y2+2.0*np.pi
+            y2 = y2+2*np.pi
       
     y_req = y1 + (y2-y1)*(x_req-x1)/(x2-x1)
         
@@ -153,13 +170,13 @@ def interp1angle(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
 
 
 @njit(cache=True)
-def interp1(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64): 
+def interp1(x: np.ndarray, y: np.ndarray, x_req: np.float64, jpos: np.int64): 
     """Linear interpolation within a data array, or extrapolation outside.
        Inputs: x [real[:]] -  contains x values;
                y [real[:]] -  contains y values;
                x_req - the required x value;
                jpos - a guess for where x-value would appear in the list (i.e. xy_list[jpos,0]<x_req<xy_list[jpos+1,0]);
-       Outputs: y_req [float64] - the required y value from linear interpolation, or extrapolation;
+       Outputs: y_req [np.float64] - the required y value from linear interpolation, or extrapolation;
                 jpos [integer] - the location in the list with xy_list[jpos,1]<y_req<xy_list[jpos+1,1].
     """
           
@@ -174,20 +191,13 @@ def interp1(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
         x2 = x[1]
         y1 = y[0]
         y2 = y[1]
-    elif (x_req>x[-1]):
-        x1 = x[-1]
-        x2 = x_req
-        y1 = y[-1]
-        y2 = y[-1]
+    elif (x_req>=x[-1]): # Constant extrapolation
+        return y[-1], Nx
     else:
-        if (jpos>Nx):
-            j = locate(x, x_req)
-            x1 = x[j]
-            x2 = x[j+1]
-            y1 = y[j]
-            y2 = y[j+1]
+        jpos = hunt(x, x_req, jpos)
+        if jpos>Nx-2:
+            return y[-1], jpos
         else:
-            jpos = hunt(x, x_req, jpos)
             x1 = x[jpos]
             x2 = x[jpos+1]
             y1 = y[jpos]
@@ -199,13 +209,13 @@ def interp1(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
 
 
 @njit(cache=True)
-def interpexp(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
+def interpexp(x: np.ndarray, y: np.ndarray, x_req: np.float64, jpos: np.int64):
     """Exponential interpolation within a data array, or exponential extrapolation outside.
     Inputs: x [real[:]] -  contains x values;
             y [real[:]] -  contains y values;
             x_req - the required x value;
             jpos - a guess for where x-value would appear in the list (i.e. xy_list[jpos,0]<x_req<xy_list[jpos+1,0]);
-    Outputs: y_req [float64] - the required y value from linear interpolation, or extrapolation;
+    Outputs: y_req [np.float64] - the required y value from linear interpolation, or extrapolation;
              jpos [integer] - the location in the list with xy_list[jpos,1]<y_req<xy_list[jpos+1,1].
     """
         
@@ -222,14 +232,13 @@ def interpexp(x: np.ndarray, y: np.ndarray, x_req: float64, jpos: int64):
         y1 = y[-2]
         y2 = y[-1]
     else:
-        if (jpos>Nx):
-            j = locate(x, x_req)
-            x1 = x[j]
-            x2 = x[j+1]
-            y1 = y[j]
-            y2 = y[j+1]
+        jpos = hunt(x, x_req, jpos)
+        if (jpos>Nx-2):
+            x1 = x[-2]
+            x2 = x[-1]
+            y1 = y[-2]
+            y2 = y[-1]
         else:
-            jpos = hunt(x, x_req, jpos)
             x1 = x[jpos]
             x2 = x[jpos+1]
             y1 = y[jpos]
@@ -259,7 +268,7 @@ def MetDataArray(height: np.ndarray, temperaure: np.ndarray, pressure: np.ndarra
         return Met
 
 @njit(cache=True)
-def Met_interp(Met: np.ndarray, z_in: float64, z_pos: int64):
+def Met_interp(Met: np.ndarray, z_in: np.float64, z_pos: np.int64):
         """MetDataArrays.interp : interpolate met data
         
             Inputs:
@@ -306,17 +315,17 @@ def Met_interp(Met: np.ndarray, z_in: float64, z_pos: int64):
         elif (z_pos < Nz):
             dTadz = (temperature[z_pos]-temperature[z_pos-1])/(z[z_pos]-z[z_pos-1])
         else:
-            dTadz = 0.0
+            dTadz = np.float64(0.0)
         vals['dTadz'] = dTadz
       
         # Find pressure gradient
         pressure = Met[:,2]
-        if (z_pos+1 < Nz):
+        if (z_pos < Nz-2):
             L = (np.log(pressure[z_pos+1]) - np.log(pressure[z_pos]))/(z[z_pos+1]-z[z_pos])
             logA = np.log(pressure[z_pos]) - L*z[z_pos]
         else:
-            L = (np.log(pressure[z_pos]) - np.log(pressure[z_pos-1]))/(z[z_pos]-z[z_pos-1])
-            logA = np.log(pressure[z_pos-1]) - L*z[z_pos-1]
+            L = (np.log(pressure[z_pos-1]) - np.log(pressure[z_pos-2]))/(z[z_pos-1]-z[z_pos-2])
+            logA = np.log(pressure[z_pos-2]) - L*z[z_pos-2]
         A = np.exp(logA)
         dPadz = L*A*np.exp(L*z_in)
         vals['dPadz'] = dPadz
@@ -327,15 +336,15 @@ def Met_interp(Met: np.ndarray, z_in: float64, z_pos: int64):
 # MetDataArraysSpec = np.dtype([
 #     # MetData stores meteorological data.
 #     # Each variable has values as function of height
-#     ('height', float64[:]),
-#     ('temperature', float64[:,:]),
-#     ('pressure', float64[:,:]),
-#     ('direction', float64[:,:]),
-#     ('speed', float64[:,:]),
-#     ('relhum', float64[:,:]),
+#     ('height', np.float64[:]),
+#     ('temperature', np.float64[:,:]),
+#     ('pressure', np.float64[:,:]),
+#     ('direction', np.float64[:,:]),
+#     ('speed', np.float64[:,:]),
+#     ('relhum', np.float64[:,:]),
 # ])
 
-#@jitclass([('height', float64[:,:]), ('temperature', float64[:,:])])
+#@jitclass([('height', np.float64[:,:]), ('temperature', np.float64[:,:])])
 # @jitclass(MetDataArraysSpec)
 # class MetDataArrays(object):
 #     height: np.ndarray
@@ -379,7 +388,7 @@ def Met_interp(Met: np.ndarray, z_in: float64, z_pos: int64):
 
 #         return
 
-#     def interp(self, z: float64, z_pos: int64):
+#     def interp(self, z: np.float64, z_pos: np.int64):
 #         """MetDataArrays.interp : interpolate met data
         
 #             Inputs:
@@ -429,41 +438,41 @@ def Met_interp(Met: np.ndarray, z_in: float64, z_pos: int64):
 
 
 @njit(cache=True)
-def esfunc(T: float64, Ti0: float64, Ti00: float64):
+def esfunc(T: np.float64, Ti0: np.float64, Ti00: np.float64):
     """
         Saturation vapour pressure over water, ice or mixture
     """
       
     if (T >= Ti0):
-        f = 1.0
-        dfdT = 0.0
+        f = np.float64(1.0)
+        dfdT = np.float64(0.0)
     elif (T <= Ti00):
-        f = 0.0
-        dfdT = 0.0
+        f = np.float64(0.0)
+        dfdT = np.float64(0.0)
     else:
         f = (T-Ti00)/(Ti0-Ti00)
-        dfdT = 1.0/(Ti0-Ti00)
+        dfdT = np.float64(1.0)/(Ti0-Ti00)
       
     esw, deswdT = eswfunc(T)
     esi, desidT = esifunc(T)
     
-    es = f*esw + (1.0-f)*esi
-    desdT = f*deswdT + (1.0-f)*desidT + (esw-esi)*dfdT
+    es = f*esw + (np.float64(1.0)-f)*esi
+    desdT = f*deswdT + (np.float64(1.0)-f)*desidT + (esw-esi)*dfdT
               
     return es,desdT
 
 
 @njit(cache=True)
-def eswfunc(T: float64):
+def eswfunc(T: np.float64):
     """Saturation vapour pressure over water
     [Alduchov & Eskridge 1996]"""
     
-    esw0 = 610.94 # Pa
-    Aw = 17.625
-    Bw = 243.04
+    esw0 = np.float64(610.94) # Pa
+    Aw = np.float64(17.625)
+    Bw = np.float64(243.04)
     
     # Magnus formula
-    tdegC = T - 273.15
+    tdegC = T - np.float64(273.15)
     
     esw = esw0*np.exp(Aw*tdegC/(Bw+tdegC))
     
@@ -473,17 +482,17 @@ def eswfunc(T: float64):
 
 
 @njit(cache=True)
-def esifunc(T: float64):
+def esifunc(T: np.float64):
     
     """Saturation vapour pressure over ice
     [Alduchov & Eskridge 1996]"""
 
-    esi0 = 611.21 # Pa
-    Ai = 22.587
-    Bi = 273.86
+    esi0 = np.float64(611.21) # Pa
+    Ai = np.float64(22.587)
+    Bi = np.float64(273.86)
     
     # Magnus formula
-    tdegC = T - 273.15
+    tdegC = T - np.float64(273.15)
       
     esi = esi0*np.exp(Ai*tdegC/(Bi+tdegC))
       

@@ -1,5 +1,4 @@
 import numpy as np
-
 # from numba.experimental import jitclass
 from numba.types import float64, int64, string
 
@@ -9,9 +8,10 @@ def set_solver_params(
     # StopCond: str = "Top",  # Stop when plume vertical velocity first reaches zero (i.e. at first maxima).
     Umin: float = 1.0e-3,  # Default minimum rise speed.  If StopCond='Top' and U falls below Umin during integration, the integration stops
     MaxHorizDistance: float = 100e3,  # Default horizontal distance from source.  If StopCond='HorizDistance' and sqrt(x^2+y^2)>MaxHorizDistance the integration stops
-    rtol: float = 1.0e-6,  # Default relative error tolerance
+    atol: float = 1.0e-8,  # Default absolute error tolerance
+    rtol: float = 1.0e-8,  # Default relative error tolerance
     MinStep: float = 1.0e-8,  # Default minimum rk step size
-    MaxStep: float = 1,  # Default minimum rk step size
+    MaxStep: float = 10,  # Default minimum rk step size
     InitStep: float = 1.0e-3,  # Default initial rk step size
     OutStep: float = 100.0,
     MaxSolnPnts: int = 100000,  # Maximum number of solution points allowed by the solver.
@@ -19,6 +19,8 @@ def set_solver_params(
     invsolrtol: float = 1.0e-4,  # Default relative error tolerance for inverse solver
     invsolatol: float = 1.0e-2,  # Default absolute error tolerance for inverse solver
     invsolxtol: float = 1.0e-14,  # Default tolerance for interval in inverse solver
+    threeD: bool = True, # Plume in 3d?
+    eqn: str = "ice", # "ice": Include ice phase change; "wet": Include liquid water phase change; "dry": no water phase change
 ):
 
     sp_dtype = np.dtype(
@@ -26,6 +28,7 @@ def set_solver_params(
             ("sMax", np.float64),
             ("Umin", np.float64),
             ("MaxHorizDistance", np.float64),
+            ("atol", np.float64),
             ("rtol", np.float64),
             ("MinStep", np.float64),
             ("MaxStep", np.float64),
@@ -36,6 +39,8 @@ def set_solver_params(
             ("invsolrtol", np.float64),
             ("invsolatol", np.float64),
             ("invsolxtol", np.float64),
+            ("threeD", bool),
+            ("eqn", np.int64),
         ]
     )
 
@@ -44,6 +49,7 @@ def set_solver_params(
     sp["sMax"][0] = np.float64(sMax)
     sp["Umin"][0] = np.float64(Umin)
     sp["MaxHorizDistance"][0] = np.float64(MaxHorizDistance)
+    sp["atol"][0] = np.float64(atol)
     sp["rtol"][0] = np.float64(rtol)
     sp["MinStep"][0] = np.float64(MinStep)
     sp["MaxStep"][0] = np.float64(MaxStep)
@@ -54,43 +60,53 @@ def set_solver_params(
     sp["invsolrtol"][0] = np.float64(invsolrtol)
     sp["invsolatol"][0] = np.float64(invsolatol)
     sp["invsolxtol"][0] = np.float64(invsolxtol)
+    sp["threeD"][0] = threeD
+    match eqn:
+        case "ice":
+            sp["eqn"][0] = 2
+        case "wet":
+            sp["eqn"][0] = 1
+        case "dry":
+            sp["eqn"][0] = 0
+        case _:
+            raise ValueError(f'eqn setting {eqn} not recognized.  Valid options are "ice", "wet" or "dry".')
     return sp
 
 
 # SolverSetSpec = [
-#     ("sMax", float64),
+#     ("sMax", np.float64),
 #     ("StopCond", string),
-#     ("Umin", float64),
-#     ("MaxHorizDistance", float64),
-#     ("rtol", float64),
-#     ("MinStep", float64),
-#     ("MaxStep", float64),
-#     ("InitStep", float64),
-#     ("OutStep", float64),
-#     ("MaxSolnPnts", int64),
-#     ("invsolMaxIts", int64),
-#     ("invsolrtol", float64),
-#     ("invsolatol", float64),
-#     ("invsolxtol", float64),
+#     ("Umin", np.float64),
+#     ("MaxHorizDistance", np.float64),
+#     ("rtol", np.float64),
+#     ("MinStep", np.float64),
+#     ("MaxStep", np.float64),
+#     ("InitStep", np.float64),
+#     ("OutStep", np.float64),
+#     ("MaxSolnPnts", np.int64),
+#     ("invsolMaxIts", np.int64),
+#     ("invsolrtol", np.float64),
+#     ("invsolatol", np.float64),
+#     ("invsolxtol", np.float64),
 # ]
 
 
 # @jitclass(SolverSetSpec)
 # class SolverSet(object):
-#     sMax: float64  # Default end point of integration, so eventually integration will stop
+#     sMax: np.float64  # Default end point of integration, so eventually integration will stop
 #     StopCond: string  # Stop when plume vertical velocity first reaches zero (i.e. at first maxima).
-#     Umin: float64  # Default minimum rise speed.  If StopCond='Top' and U falls below Umin during integration, the integration stops
-#     MaxHorizDistance: float64  # Default horizontal distance from source.  If StopCond='HorizDistance' and sqrt(x^2+y^2)>MaxHorizDistance the integration stops
-#     rtol: float64  # Default relative error tolerance
-#     MinStep: float64  # Default minimum rk step size
-#     MaxStep: float64  # Default minimum rk step size
-#     InitStep: float64  # Default initial rk step size
-#     OutStep: float64
-#     MaxSolnPnts: int64  # Maximum number of solution points allowed by the solver.
-#     invsolMaxIts: int64  # Default maximum number of iterations for inverse solver
-#     invsolrtol: float64  # Default relative error tolerance for inverse solver
-#     invsolatol: float64  # Default absolute error tolerance for inverse solver
-#     invsolxtol: float64  # Default tolerance for interval in inverse solver
+#     Umin: np.float64  # Default minimum rise speed.  If StopCond='Top' and U falls below Umin during integration, the integration stops
+#     MaxHorizDistance: np.float64  # Default horizontal distance from source.  If StopCond='HorizDistance' and sqrt(x^2+y^2)>MaxHorizDistance the integration stops
+#     rtol: np.float64  # Default relative error tolerance
+#     MinStep: np.float64  # Default minimum rk step size
+#     MaxStep: np.float64  # Default minimum rk step size
+#     InitStep: np.float64  # Default initial rk step size
+#     OutStep: np.float64
+#     MaxSolnPnts: np.int64  # Maximum number of solution points allowed by the solver.
+#     invsolMaxIts: np.int64  # Default maximum number of iterations for inverse solver
+#     invsolrtol: np.float64  # Default relative error tolerance for inverse solver
+#     invsolatol: np.float64  # Default absolute error tolerance for inverse solver
+#     invsolxtol: np.float64  # Default tolerance for interval in inverse solver
 
 #     def __init__(
 #         self,
