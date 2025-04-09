@@ -391,7 +391,7 @@ def fice(
             )
             A[9, 11] = (
                 g * (T - Ti00) * (T - Ti00) * (Pa - es) * (Pa - es)
-                  - Lv0 * phia * Ra * es / Rv * (T - Ti00) * dPadz
+                  - Lv0 * phia * Ra * es / Rv * (T - Ti00) * (T - Ti00) * dPadz
             )
         else:  # all ice
             A[9, 0] = (
