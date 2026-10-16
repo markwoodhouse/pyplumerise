@@ -1,21 +1,23 @@
-from datetime import datetime
-from functools import cache
-from math import ceil, floor
 import os
 import re
-
+import time
+from datetime import datetime
+from functools import cache
+from io import StringIO
+from math import ceil, floor
 from typing import Optional
 
+import cdsapi
 import metpy as metpy
 import metpy.calc as mpcalc
 import metpy.units as mpunits
 import numpy as np
+import pandas as pd
+import requests
+from netCDF4 import Dataset
 from numba import jit, njit
 # from numba.experimental import jitclass
 from numba.types import float64, int64, string
-from siphon.simplewebservice.wyoming import WyomingUpperAir
-import cdsapi
-from netCDF4 import Dataset
 
 
 @njit(cache=True)
@@ -523,7 +525,8 @@ class MetData:
                 stationID: Optional[str]=None,
                 source: Optional[str]=None,
                 latitude: Optional[float]=None,
-                longitude: Optional[float]=None
+                longitude: Optional[float]=None,
+                verbose: bool=False,
                 ):
         
         if type is None:
@@ -552,7 +555,7 @@ class MetData:
                     self.date = date
                     self.time = time
                     self.stationID = stationID
-                    self.data = self.get_wyoming()
+                    self.data = self.get_wyoming(verbose=verbose)
             case 'era5':
                 self.source = 'cds'
                 self.date = date
@@ -591,13 +594,14 @@ class MetData:
 
         return met_array
             
-    def get_wyoming(self):
+    def get_wyoming(self, verbose=False):
         """get_wyoming: get radiosonde data from Wyoming Weather Web at specified date, time and station.
 
         Required:
             date [string]: date in ISO format YYYY-MM-DD
             time [string]: time in HH:MM format
             station [string]: station label
+            verbose [bool]: print download, retry, and completion status
 
         Returns:
             metdata: structured array with radiosonde data
@@ -606,15 +610,87 @@ class MetData:
 
         date = datetime.fromisoformat(self.date+' '+self.time)
 
-        df = WyomingUpperAir.request_data(date, self.stationID)
-        df.dropna(axis=0, inplace=True)
+        if verbose:
+            print(
+                f"Downloading Wyoming radiosonde for station {self.stationID} "
+                f"at {date:%Y-%m-%d %HZ}..."
+            )
+        for attempt in range(4):
+            try:
+                response = requests.get(
+                    "https://weather.uwyo.edu/wsgi/sounding",
+                    params={
+                        "type": "TEXT:CSV",
+                        "datetime": date.strftime("%Y-%m-%d %H:%M:%S"),
+                        "id": self.stationID,
+                    },
+                    timeout=30,
+                )
+            except requests.RequestException as exc:
+                if verbose:
+                    print(
+                        "Wyoming radiosonde download failed "
+                        f"({type(exc).__name__})."
+                    )
+                raise
 
-        temperature = mpunits.units.Quantity(df['temperature'].values, df.units['temperature'])
-        pressure = mpunits.units.Quantity(df['pressure'].values, df.units['pressure'])
-        height = mpunits.units.Quantity(df['height'].values, df.units['height'])
-        dewpoint = mpunits.units.Quantity(df['dewpoint'].values, df.units['dewpoint'])
-        direction = mpunits.units.Quantity(df['direction'].values, df.units['direction'])
-        speed = mpunits.units.Quantity(df['speed'].values, df.units['speed'])
+            if response.status_code != 503 or attempt == 3:
+                break
+
+            retry_delay = 2**attempt
+            if verbose:
+                print(
+                    f"Wyoming archive is busy; retrying in {retry_delay} seconds "
+                    f"(attempt {attempt + 2}/4)..."
+                )
+            response.close()
+            time.sleep(retry_delay)
+
+        try:
+            response.raise_for_status()
+        except requests.RequestException:
+            if verbose:
+                print(
+                    "Wyoming radiosonde download failed "
+                    f"(HTTP {response.status_code})."
+                )
+            raise
+        if verbose:
+            print("Wyoming radiosonde download succeeded.")
+
+        df = pd.read_csv(
+            StringIO(response.text),
+            parse_dates=["time"],
+            date_format="%Y-%m-%d %H:%M:%S",
+            skipinitialspace=True,
+        )
+        df = df.rename(columns=lambda column: column.split("_")[0])
+        df = df.rename(
+            columns={
+                "geopotential height": "height",
+                "dew point temperature": "dewpoint",
+                "wind direction": "direction",
+                "wind speed": "speed",
+            }
+        )
+        df = df.dropna(
+            subset=("temperature", "dewpoint", "direction", "speed"),
+            how="all",
+        ).reset_index(drop=True)
+        df = df[["temperature", "pressure", "height", "dewpoint", "direction", "speed"]]
+        df = df.dropna(axis=0)
+        if df.empty:
+            raise ValueError(
+                f"No radiosonde data available for {date:%Y-%m-%d %HZ} "
+                f"for station {self.stationID}."
+            )
+
+        temperature = mpunits.units.Quantity(df["temperature"].values, "degC")
+        pressure = mpunits.units.Quantity(df["pressure"].values, "hPa")
+        height = mpunits.units.Quantity(df["height"].values, "meter")
+        dewpoint = mpunits.units.Quantity(df["dewpoint"].values, "degC")
+        direction = mpunits.units.Quantity(df["direction"].values, "degrees")
+        speed = mpunits.units.Quantity(df["speed"].values, "m/s")
 
         relhum = mpcalc.relative_humidity_from_dewpoint(temperature, dewpoint)
 

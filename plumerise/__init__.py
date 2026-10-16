@@ -1,3 +1,6 @@
 from .data import StationList
+from .model import (MetData, get_soln, initialize, set_IC, set_params,
+                    set_solver_params, solve)
+from .version import __version__
 
-from .model import set_solver_params, set_params, set_IC, MetData, solve, get_soln
+__author__ = "Mark J. Woodhouse"
