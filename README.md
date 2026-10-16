@@ -45,6 +45,9 @@ plumerise.initialize(verbose=True)
 Initialization downloads a radiosonde profile from the University of Wyoming,
 then solves a small test problem. It therefore requires an internet connection.
 
+For a package overview, meteorological data setup, simulation workflow,
+ensemble usage, and troubleshooting, see the [package guide](docs/guide.md).
+
 ## Troubleshooting
 
 - If Poetry is not installed, install it using the
