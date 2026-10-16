@@ -136,3 +136,4 @@ poetry.lock
 *.pkl
 Results.zip
 plumerise/notebooks/.ipynb_checkpoints/*
+cache/cache.db
