@@ -81,15 +81,25 @@ def make_ensemble_app(sample_settings, ensemble_size, design="LHC"):
 
     N_dists = len(dists)
 
-    if design=='LHC':
-        lhd = lhs(N_dists, samples=ensemble_size)
-
+    if design == "LHC":
+        samples = (
+            lhs(N_dists, samples=ensemble_size)
+            if N_dists
+            else np.empty((ensemble_size, 0))
+        )
         for j, d in enumerate(dists):
-            dists[j].sample_from_ppf(lhd[:,j])
-            
-    df = pd.DataFrame(columns=list(Params.keys()))
-    for d in dists:
-        df[d.name] = d.samples.tolist()
+            d.sample_from_ppf(samples[:, j])
+            samples[:, j] = d.samples
+    elif design == "MC":
+        samples = np.empty((ensemble_size, N_dists))
+        for j, d in enumerate(dists):
+            samples[:, j] = d.dist.rvs(ensemble_size)
+    else:
+        raise ValueError(f"Unknown ensemble design {design!r}; use 'LHC' or 'MC'.")
+
+    df = pd.DataFrame(index=range(ensemble_size), columns=list(Params.keys()))
+    for j, d in enumerate(dists):
+        df[d.name] = samples[:, j]
     
     for f in fixed:
         df.loc[:, f['name']] = f['value']
@@ -157,11 +167,21 @@ def solve_plume(vent_elevation,
 
     SolParams = set_solver_params()
 
-    Met = met_data.to_array()
+    Met = np.asarray(met_data, dtype=np.float64)
 
-    IC, y_start, GasThrust, Condense, Flag = integrateICs(IC, Parameters, Met)
+    IC, y_start, GasThrust, Condense, Flag = integrateICs(
+        IC, Parameters, Met, SolParams
+    )
 
-    plume_state, _, _, _ = integrate(Parameters, SolParams, Met, GasThrust, Condense, y_start)
+    plume_state, _, _, _ = integrate(
+        Parameters,
+        SolParams,
+        Met,
+        GasThrust,
+        Condense,
+        y_start,
+        verbose=False,
+    )
 
     return {
         'Q0': plume_state['Q0'],
@@ -215,16 +235,22 @@ def run_solve_plume(params,
 
 def solve_ensemble(sample_settings, ensemble_size, met_data):
 
-    met_data = np.array(met_data)
+    if isinstance(met_data, MetData):
+        met_data = met_data.to_array()
+    met_data = np.asarray(met_data, dtype=np.float64)
 
-    df = make_ensemble(sample_settings, ensemble_size)
+    if sample_settings and all(
+        isinstance(setting, dict) and "fixed" in setting
+        for setting in sample_settings.values()
+    ):
+        df = make_ensemble_app(sample_settings, ensemble_size)
+    else:
+        df = make_ensemble(sample_settings, ensemble_size)
 
     num_cores = mp.cpu_count()-1
     with mp.Pool(num_cores) as pool:
         results = pool.map(partial(run_solve_plume, met_data=met_data), list(df.itertuples(index=False, name=None)))
     
     df_out = pd.DataFrame(results)
-    print(df_out)
 
     return pd.merge(df, df_out, left_index=True, right_index=True)
-

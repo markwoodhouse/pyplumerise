@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, timezone
 from faulthandler import disable
 from math import floor
@@ -24,11 +25,14 @@ from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
 from plumerise.model.ensemble_solve import solve_ensemble
 
 from ..data import StationList
-from ..model import MetData, Params, solve_ensemble
+from ..model import MetData, Params, initialize, solve_ensemble
 from ..utilities.number_tools import (float_string, lin_levels, lin_steps,
                                       log_levels, log_steps, nice_round_down,
                                       nice_round_up, sci_string)
 from ..utilities.string_tools import string_html, units_html
+
+logger = logging.getLogger(__name__)
+
 
 # from dash_extensions.enrich import (DashProxy, Input, MultiplexerTransform,
                                     # Output, ServersideOutput,
@@ -150,6 +154,13 @@ def build_params_table(Params):
 
 
 def make_dashboard():
+
+    print(
+        "Dashboard initialization: downloading test sounding and warming up solver...",
+        flush=True,
+    )
+    initialize(verbose=False)
+    print("Dashboard initialization complete.", flush=True)
 
     cache = diskcache.Cache("./cache")
     long_callback_manager = DiskcacheLongCallbackManager(cache)
@@ -289,17 +300,16 @@ def make_dashboard():
                                 className="formfield fflrg",
                                 children=[
                                     html.Label(
-                                        "Date:",
+                                        "Date (YYYY-MM-DD):",
                                         className="Dropdown-label fl",
                                     ),
-                                    dcc.DatePickerSingle(
+                                    dcc.Input(
                                         id="met-date-picker",
-                                        min_date_allowed=date(2000, 1, 1),
-                                        max_date_allowed=date.today(),
-                                        initial_visible_month=date.today(),
-                                        date=date.today(),
-                                        display_format='DD/MM/YYYY',
-                                        with_portal=True,
+                                        name="met-date-picker",
+                                        className="InputBox",
+                                        type="text",
+                                        value=date.today().isoformat(),
+                                        placeholder="YYYY-MM-DD",
                                     ),
                                 ],
                             ),
@@ -878,7 +888,7 @@ def make_dashboard():
 
     @app.callback(
         Output("met-date-store", "data"),
-        Input("met-date-picker", "date"),
+        Input("met-date-picker", "value"),
     )
     def store_date(date):
         return {"value": date}  # type:ignore
@@ -1196,12 +1206,19 @@ def make_dashboard():
 
             met_data = None
             msg = ""
+            logger.info(
+                "Meteorological data requested: source=%s date=%s time=%s",
+                met_source.get("dataset"),
+                met_date.get("value"),
+                met_time.get("value"),
+            )
             match met_source['dataset']:
 
                 case 'Wyoming':
 
                     if met_datetime > datetime.now(timezone.utc):
                         msg = 'Cannot get forecasts from Wyoming Weather Web.'
+                        logger.warning("%s", msg)
                     else:
 
                         if met_datetime.hour>12:
@@ -1211,32 +1228,72 @@ def make_dashboard():
 
                         met_stations = StationList.copy()
                         met_stations = met_stations[(met_stations.date_start <= met_datetime.year) & (met_stations.date_end >= met_datetime.year)]
-                        met_stations["distance"] = met_stations.apply(
-                            lambda row: GreatCircleDistance(
-                                row["lat"],
-                                row["lon"],
-                                met_latitude["value"],
-                                met_longitude["value"],
-                            ),
-                            axis=1,
-                        )
+                        if met_stations.empty:
+                            msg = f"No Wyoming radiosonde stations have records for {met_datetime.year}."
+                            logger.warning("%s", msg)
+                        else:
+                            met_stations["distance"] = met_stations.apply(
+                                lambda row: GreatCircleDistance(
+                                    row["lat"],
+                                    row["lon"],
+                                    met_latitude["value"],
+                                    met_longitude["value"],
+                                ),
+                                axis=1,
+                            )
+                            met_stations = met_stations.dropna(subset=["distance"])
 
-                        met_station = met_stations[
-                            met_stations.distance == met_stations.distance.min()
-                        ]
-
-                        met_station_id = met_station.iloc[0].code[-5:]
-
-                        for hr in hours_to_try:
-                            try:
-                                MD = MetData(
-                                    met_date['value'], hr, StationID=str(met_station_id), MetType="Radiosonde", MetSource="Wyoming"
+                            if met_stations.empty:
+                                msg = "No Wyoming radiosonde stations have valid coordinates."
+                                logger.warning("%s", msg)
+                            else:
+                                met_station = met_stations.loc[
+                                    [met_stations["distance"].idxmin()]
+                                ]
+                                met_station_id = met_station.iloc[0].code[-5:]
+                                station_distance = met_station.iloc[0]["distance"]
+                                logger.info(
+                                    "Selected Wyoming station %s (%.1f km from requested coordinates); "
+                                    "trying launch times %s",
+                                    met_station_id,
+                                    station_distance,
+                                    ", ".join(hours_to_try),
                                 )
-                                msg = f"{met_source['dataset']}, {met_station_id}, {met_date['value']}, {hr}"
-                                met_data = MD.Data
-                                break
-                            except:
-                                msg = f"Could not get data"
+
+                                errors = []
+                                for hr in hours_to_try:
+                                    try:
+                                        MD = MetData(
+                                            met_date['value'],
+                                            hr,
+                                            "radiosonde",
+                                            stationID=str(met_station_id),
+                                            source="wyoming",
+                                        )
+                                        met_data = MD.to_array().tolist()
+                                        msg = (
+                                            f"Wyoming station {met_station_id}, "
+                                            f"{met_date['value']} {hr} UTC; "
+                                            f"loaded {len(met_data)} observations "
+                                            f"({station_distance:.1f} km away)."
+                                        )
+                                        logger.info("%s", msg)
+                                        break
+                                    except Exception as exc:
+                                        errors.append(f"{hr} UTC: {type(exc).__name__}: {exc}")
+                                        logger.exception(
+                                            "Could not load Wyoming radiosonde for station %s "
+                                            "at %s %s UTC",
+                                            met_station_id,
+                                            met_date["value"],
+                                            hr,
+                                        )
+                                else:
+                                    msg = (
+                                        f"Could not load Wyoming data for station "
+                                        f"{met_station_id} ({station_distance:.1f} km away). "
+                                        + " | ".join(errors)
+                                    )
             
             return  met_data, msg, "OutputBox"
     
@@ -1304,6 +1361,7 @@ def make_dashboard():
     )
     def ensemble_run(clicked, Hvar, Cvar, met_data, params_data, ensemble_size, df_in, out_options):
         
+        data_download_disabled = False
 
         if ctx.triggered_id in ["run-ensemble-button", "obs-select", "output-select"]:
 
@@ -1658,4 +1716,8 @@ def make_dashboard():
                 return dcc.send_data_frame(df.to_csv, "plumerise_matching_ensemble.csv")
 
 
-    app.run_server(host="127.0.0.1", debug=True)
+    app.run_server(
+        host="127.0.0.1",
+        debug=True,
+        dev_tools_hot_reload=False,
+    )
