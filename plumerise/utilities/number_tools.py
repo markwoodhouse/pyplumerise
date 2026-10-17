@@ -21,11 +21,11 @@ def isnumber(x: Any) -> bool:
         return False
 
 
-def sci_string(f: np.float_, precision: Optional[int] = 1, start_sci: int = 1) -> str:
+def sci_string(f: np.float64, precision: Optional[int] = 1, start_sci: int = 1) -> str:
     """Generate a string representation of a float point number in scientific notation a x 10^b.
 
     Args:
-        f (np.float_): Number to represent as string
+        f (np.float64): Number to represent as string
         precision (int, optional): precision (number of digits) of the mantissa. Defaults to 1.
         start_sci (int, optional): do not convert to scientific notation if |b|<start_sci. Defaults to 1.
 
@@ -90,7 +90,7 @@ def nice_round_up(val, mag=None):
     return ceil(val / mag) * mag
 
 
-def nice_round_down(val: np.float_, mag: Optional[int] = None) -> np.float_:
+def nice_round_down(val: np.float64, mag: Optional[int] = None) -> np.float64:
     """Rounds down a number to a nice value of the form a*10^b for integer
         a and b.
 
@@ -116,7 +116,7 @@ def nice_round_down(val: np.float_, mag: Optional[int] = None) -> np.float_:
     return fval
 
 
-def nice_round_nearest(val: np.float_, mag: Optional[int] = None) -> np.float_:
+def nice_round_nearest(val: np.float64, mag: Optional[int] = None) -> np.float64:
 
     val_down = nice_round_down(val, mag)
     val_up = nice_round_up(val, mag)
@@ -158,7 +158,7 @@ def log_steps(vmin, vmax, step=10, include_max=True):
     return levels
 
 
-def step_direction(vmin: np.float_, vmax: np.float_, step: np.float_) -> int:
+def step_direction(vmin: np.float64, vmax: np.float64, step: np.float64) -> int:
     fmin = vmin // step
     if np.isclose(fmin, int(fmin)):
         return 1
