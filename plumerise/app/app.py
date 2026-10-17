@@ -772,11 +772,19 @@ def make_dashboard():
             html.Div(
                 className="header",
                 children=[
-                    html.Img(
-                        src=app.get_asset_url("uob_logo.png"),
-                        style={"float": "left"},
-                        alt="University of Bristol",
-                        height=49,
+                    html.Div(
+                        children=[
+                            "University of",
+                            html.Br(),
+                            html.Span("Bristol", style={"fontSize": "20pt"}),
+                        ],
+                        style={
+                            "float": "left",
+                            "fontSize": "12pt",
+                            "fontWeight": "bold",
+                            "lineHeight": "18pt",
+                            "margin": "4px 0 0 10px",
+                        },
                     ),
                     html.Div(
                         className="modelTitle",
@@ -1718,6 +1726,6 @@ def make_dashboard():
 
     app.run_server(
         host="127.0.0.1",
-        debug=True,
+        debug=False,
         dev_tools_hot_reload=False,
     )

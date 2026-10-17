@@ -1,0 +1,6 @@
+include LICENSE
+include THIRD_PARTY_NOTICES.md
+include plumerise/data/igra2-station-list.pkl
+include plumerise/data/igra2-station-list.txt
+recursive-include plumerise/app/assets *
+recursive-include plumerise/notebooks *.ipynb
