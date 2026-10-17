@@ -2,6 +2,7 @@
 name = "plumerise"
 version = "1.0.0"
 description = "Model of wind-blown volcanic plumes"
+readme = "README.md"
 authors = ["Mark Woodhouse <mark.woodhouse@bristol.ac.uk>"]
 license = "BSD-3-Clause"
 include = [
