@@ -7,25 +7,54 @@ The package includes meteorological data handling, and allows for ensemble simul
 ## Requirements
 
 - Python 3.10 or newer.
-- [Poetry](https://python-poetry.org/) for dependency and environment management
 
 ## Installation
 
-Clone the repository, change into the project directory, and install the
-dependencies:
+Install pyPlumeRise in a dedicated virtual environment or Conda environment;
+avoid installing it into a system or base Python environment.
+
+Using `venv`:
 
 ```sh
-git clone https://github.com/markwoodhouse/pyplumerise.git
-cd pyplumerise
-poetry install
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install plumerise
 ```
+
+On Windows PowerShell, activate the environment with:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+Using Conda:
+
+```sh
+conda create --name plumerise python=3.12
+conda activate plumerise
+python -m pip install plumerise
+```
+
+To build from a source checkout, activate a virtual or Conda environment,
+then run:
+
+```sh
+python -m pip install --upgrade build
+python -m build
+python -m pip install dist/plumerise-1.0.0-py3-none-any.whl
+```
+
+The project code is licensed under BSD-3-Clause. Some bundled datasets and
+assets have separate terms; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+before redistribution.
 
 ## Run the example notebook
 
 Launch the included Jupyter notebook example with:
 
 ```sh
-poetry run plumerise-example 1
+plumerise-example 1
 ```
 
 The command takes the example number as a positional integer argument. Example
@@ -50,10 +79,10 @@ ensemble usage, and troubleshooting, see the [package guide](docs/guide.md).
 
 ## Troubleshooting
 
-- If Poetry is not installed, install it using the
-  [official instructions](https://python-poetry.org/docs/#installation).
-- If the example command cannot find Jupyter, verify installation completed
-  with `poetry install`, then try `poetry run jupyter notebook` from the project
+- If the example command cannot find Jupyter, verify it is installed in the
+  active environment, then try `python -m jupyter notebook` from the project
   directory.
 - The initialization check uses online meteorological data; if its download
   fails, check your internet connection and try again.
+- If installation fails, confirm the active virtual or Conda environment uses
+  Python 3.10 or newer and install with that environment's `python -m pip`.

@@ -1,6 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*.nb[ci]
 *$py.class
 
 # C extensions
@@ -137,3 +138,5 @@ poetry.lock
 Results.zip
 plumerise/notebooks/.ipynb_checkpoints/*
 cache/cache.db
+cache/
+plumerise/notebooks/era5_data.nc

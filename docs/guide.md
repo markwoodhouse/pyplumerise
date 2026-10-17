@@ -8,16 +8,25 @@ properties.
 
 ## Install and launch
 
-Install the package and its dependencies from the repository root:
+Install the package in a dedicated virtual or Conda environment rather than
+the system or base Python environment. To install a published release in a
+virtual environment:
 
 ```sh
-poetry install
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install plumerise
 ```
 
-Launch the included Jupyter notebook example:
+To build from a source checkout, activate the environment, then run
+`python -m pip install --upgrade build` and `python -m build`. The wheel and
+source distribution will be written to `dist/`.
+
+Launch the included Jupyter notebook example from the active environment:
 
 ```sh
-poetry run plumerise-example 1
+plumerise-example 1
 ```
 
 Example 1 demonstrates Wyoming radiosonde data, model configuration, solving,
@@ -452,20 +461,21 @@ print(results[["vent-radius", "source-temperature", "Htop", "Collapse"]].head())
 
 ## Dashboard
 
+The dashboard is intended for setting up and running ensemble simulations.
+
 Start the interactive dashboard from the project environment with:
 
 ```sh
-poetry run python -m plumerise
+python -m plumerise
 ```
 
-The dashboard binds to `127.0.0.1` with debug mode and hot reload disabled.
-Stop it with `Ctrl+C` when finished. At startup, it also runs
+The dashboard binds to `127.0.0.1`. Stop it with `Ctrl+C` when finished.
+At startup, it also runs
 `plumerise.initialize(verbose=False)` to warm up the JIT-compiled solver. This
 downloads an example Wyoming radiosonde profile, so startup requires network
 access to the Wyoming Weather Web service and may take longer on the first run.
 The dashboard prints a short initialization-start and completion message to
-the terminal. Ensemble runs suppress per-step solver diagnostics and do not
-print the complete results table.
+the terminal. Ensemble runs suppress per-step solver diagnostics.
 
 ## Initialization check
 

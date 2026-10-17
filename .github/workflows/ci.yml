@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package and test tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest
+      - name: Run tests
+        run: python -m pytest -q
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel and source distribution
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Install and smoke-test wheel
+        run: |
+          python -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          python -c 'from importlib.metadata import version; from importlib.resources import files; import plumerise; assert version("plumerise") == "1.0.0"; assert plumerise.__version__ == "1.0.0"; assert files("plumerise.data").joinpath("igra2-station-list.pkl").is_file(); assert files("plumerise.app").joinpath("assets/uob_logo.png").is_file(); assert files("plumerise.notebooks").joinpath("pyplumerise_example1.ipynb").is_file(); assert not files("plumerise.notebooks").joinpath("era5_data.nc").exists(); print("Installed wheel smoke test passed.")'
